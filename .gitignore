@@ -1,0 +1,75 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+.next/
+out/
+build/
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# Environment — NEVER COMMIT real keys
+.env
+.env.local
+.env.*.local
+# Allow the safe example template
+!.env.example
+!.env.local.example
+
+# Arc Studio runtime
+/tmp/
+*.log
+*.pid
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+node_modules/.tmp/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+postgres-data/
+redis-data/
+
+# Vitest cache
+.vitest-cache/
+
+# Playwright
+playwright-report/
+test-results/
+
+# Implementation records (kept) — but exclude any accidental credential dumps
+implementation-records/*.credentials
+
+# Local runtime configuration and tracing; never include in source exports.
+/apps/cloudflare/wrangler.hosted.jsonc
+/console.jsonl
+/traces.jsonl
+/deployments/mainnet-preparation.local.json
+
+/implementation-records/evidence/mainnet-candidate-2026-10-27/unsigned-candidate.local.json
+
+# ── Local private runtime files — never commit ────────────────────────────────
+# Owner deployment preparation drafts and signing bundles
+*.local.json
+*.local.txt
+*.local.jsonc
+# RPC proxy key (runtime-injected by Arc Studio)
+.env.rpc.local
+# Large source export artifacts (re-generated from source; not version history)
+NOTICEVAULT-SOURCE-EXPORT.json
+NOTICEVAULT-SOURCE-ALLOWLIST.json
+NoticeVault-Sanitized-Source-*.zip
+# Release candidates and staging snapshots (re-buildable from source)
+.release-candidates/
+.staging/
