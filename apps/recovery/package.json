@@ -1,0 +1,19 @@
+{
+  "name": "@noticevault/recovery",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --config vite.config.ts",
+    "build": "vite build --config vite.config.ts && bun build src/cli.ts --target=node --format=esm --outfile dist/noticevault.mjs",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "cli": "bun run src/cli.ts"
+  },
+  "devDependencies": {
+    "typescript": "~7.0.2",
+    "@types/node": "^24.0.0"
+  },
+  "bin": {
+    "noticevault": "dist/noticevault.mjs"
+  }
+}

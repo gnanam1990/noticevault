@@ -1,0 +1,32 @@
+{
+  "name": "@noticevault/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/server.ts",
+  "scripts": {
+    "dev": "bun run --watch src/server.ts",
+    "start": "bun run src/server.ts",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --reporter=verbose"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^10.0.2",
+    "@fastify/rate-limit": "^10.2.1",
+    "@noticevault/db": "workspace:*",
+    "@noticevault/sdk": "workspace:*",
+    "fastify": "^5.3.3",
+    "viem": "^2.56.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.23.1",
+    "typescript": "~7.0.2",
+    "vitest": "^3.2.7"
+  },
+  "exports": {
+    ".": "./src/server.ts",
+    "./worker": "./src/worker-service.ts"
+  }
+}

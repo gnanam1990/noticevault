@@ -1,0 +1,43 @@
+/** Synthetic identities only; actual API, signature verification and isolated PostgreSQL. */
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {mkdir, readdir, copyFile} from 'node:fs/promises';
+import {privateKeyToAccount} from 'viem/accounts';
+import {createPool,runMigrations,createSession,addMembership,getMembership} from '../../packages/db/src/index';
+import {buildConfiguredServer} from '../../apps/api/src/configured-startup';
+Reflect.set(process.env,'NODE_ENV','test');
+const schema='nv_identity', chain=5042002n, actor=privateKeyToAccount('0x'+'11'.repeat(32) as import('viem').Hex);
+const db={host:'/tmp/nv-socket',port:5432,user:'postgres',password:'',database:'noticevault_identity_it',schema};
+const cfg={configIdentity:'ARC_TESTNET' as const,port:3001,host:'127.0.0.1',db,sessionSecret:'synthetic_fixture_secret_32_bytes_only',cookieDomain:'localhost',allowedOrigins:['http://localhost:5173'],sessionTtlSecs:86400,challengeTtlSecs:300,allowedDomains:['localhost']};
+const pool=createPool(db), oldWorkspace=randomUUID(),oldSession=randomUUID();
+let app:Awaited<ReturnType<typeof buildConfiguredServer>>|undefined;
+try {
+ const dir='/tmp/nv-legacy-migrations';await mkdir(dir);
+ for(const f of await readdir('/home/user/app/packages/db/src/migrations')) if(f.endsWith('.sql')&&f<'014') await copyFile('/home/user/app/packages/db/src/migrations/'+f,dir+'/'+f);
+ assert.deepEqual((await runMigrations(pool,schema,dir)).errors,[]);
+ await pool.query('INSERT INTO '+schema+'.workspaces(id,name,owner_address) VALUES($1,$2,$3)',[oldWorkspace,'preserved legacy fixture',actor.address]);
+ await pool.query('INSERT INTO '+schema+'.workspace_memberships(workspace_id,member_address,role) VALUES($1,$2,$3)',[oldWorkspace,actor.address.toLowerCase(),'owner']);
+ await pool.query('INSERT INTO '+schema+'.sessions(id,member_address,chain_id,expires_at) VALUES($1,$2,$3,$4)',[oldSession,actor.address.toLowerCase(),chain.toString(),new Date(Date.now()+3600000)]);
+ assert.deepEqual((await runMigrations(pool,schema,'/home/user/app/packages/db/src/migrations')).errors,[]);
+ assert.equal((await pool.query('SELECT * FROM '+schema+'.workspace_memberships')).rows.length,1);
+ assert.equal(await getMembership(pool,schema,oldWorkspace,actor.address,chain),null);
+ assert.ok((await pool.query('SELECT user_id FROM '+schema+'.sessions WHERE id=$1',[oldSession])).rows[0].user_id);
+ console.log('PASS migration preserves legacy records, binds explicit session identity, and leaves unbound membership unauthorized');
+ app=await buildConfiguredServer({cfg,pool,skipMigration:true,logger:false});await app.ready();
+ let cookie='';const headers=()=>({origin:'http://localhost:5173','x-requested-with':'XMLHttpRequest',cookie});
+ const login=async()=>{const c=await app!.inject({method:'POST',url:'/auth/challenge',headers:headers(),payload:{address:actor.address,chainId:Number(chain)}});assert.equal(c.statusCode,200,c.body);const q=c.json();const r=await app!.inject({method:'POST',url:'/auth/verify',headers:headers(),payload:{nonce:q.nonce,signature:await actor.signMessage({message:q.message}),address:actor.address,chainId:Number(chain)}});assert.equal(r.statusCode,200,r.body);cookie=String(r.headers['set-cookie']).split(';')[0]!;};
+ await login();const me=await app.inject({method:'GET',url:'/auth/me',headers:headers()});assert.equal(me.statusCode,200,me.body);assert.ok(me.json().userId);
+ await login();assert.equal((await app.inject({method:'GET',url:'/auth/me',headers:headers()})).json().userId,me.json().userId);
+ const w=await app.inject({method:'POST',url:'/workspaces',headers:{...headers(),'idempotency-key':randomUUID()},payload:{name:'Synthetic bound workspace'}});assert.equal(w.statusCode,201,w.body);const ws=w.json().id;
+ for(const path of ['/workspaces','/workspaces/'+ws,'/workspaces/'+ws+'/members','/workspaces/'+ws+'/drafts']) assert.equal((await app.inject({method:'GET',url:path,headers:headers()})).statusCode,200,path);
+ console.log('PASS real signed login, stable user ID, workspace creation and authorized listing');
+ const other=randomUUID();await createSession(pool,schema,other,actor.address,1n,new Date(Date.now()+3600000));cookie='nv_session='+other;
+ const otherMe=await app.inject({method:'GET',url:'/auth/me',headers:headers()});assert.notEqual(otherMe.json().userId,me.json().userId);
+ assert.equal((await app.inject({method:'GET',url:'/workspaces',headers:headers()})).json().items.length,0);
+ for(const path of ['/workspaces/'+ws,'/workspaces/'+ws+'/members','/workspaces/'+ws+'/drafts']) assert.equal((await app.inject({method:'GET',url:path,headers:headers()})).statusCode,403,path);
+ for(const suffix of ['/drafts','/intents']) assert.equal((await app.inject({method:'POST',url:'/workspaces/'+ws+suffix,headers:headers(),payload:{}})).statusCode,403,suffix);
+ assert.equal((await app.inject({method:'GET',url:'/workspaces/'+oldWorkspace,headers:headers()})).statusCode,403);
+ await addMembership(pool,schema,ws,actor.address,'member',1n);assert.equal((await getMembership(pool,schema,ws,actor.address,chain))?.role,'owner');assert.equal((await getMembership(pool,schema,ws,actor.address,1n))?.role,'member');
+ assert.equal((await app.inject({method:'GET',url:'/readiness'})).statusCode,503);
+ console.log('PASS equal address on another chain has separate identity and no workspace/draft/intent access; distinct synthetic membership does not overwrite owner; live readiness stays disabled');
+} finally {await app?.close();await pool.end();}

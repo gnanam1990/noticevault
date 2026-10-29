@@ -1,0 +1,36 @@
+import {arcDeployment} from '@noticevault/sdk';
+/** Original build-pack record mapping. Claims in a file are never runtime evidence. */
+import {sha256,toHex} from 'viem';
+import type {NoticeVaultDeployment} from '@noticevault/sdk';
+export type DeploymentAssessment=Readonly<{state:'BLOCKED'|'RECORD_COMPLETE_UNVERIFIED';executionEnabled:false;runtimeVerified:false;diagnostics:readonly string[];recordHash?:string;creationBlock?:string}>;
+const H=/^0x[0-9a-f]{64}$/i,A=/^0x[0-9a-f]{40}$/i,U=/^(0|[1-9][0-9]{0,77})$/;
+function object(v:unknown):Record<string,unknown>{return v&&typeof v==='object'&&!Array.isArray(v)?v as Record<string,unknown>:{};}
+function exact(v:unknown,keys:string[]):boolean{const o=object(v);return Object.keys(o).length===keys.length&&keys.every(k=>Object.hasOwn(o,k));}
+function nonzero(v:unknown,re:RegExp):boolean{return typeof v==='string'&&re.test(v)&&BigInt(v)!==0n;}
+function uint(v:unknown):v is string{return typeof v==='string'&&U.test(v)&&BigInt(v)<(1n<<256n);}
+function url(v:unknown,origin=false):boolean{try{if(typeof v!=='string'||v.length>2048)return false;const u=new URL(v);return u.protocol==='https:'&&!u.username&&!u.password&&!u.search&&!u.hash&&(!origin||u.href===u.origin+'/');}catch{return false;}}
+function uniqueKeys(text:string){const stack:Array<{object:boolean;key:boolean;seen:Set<string>}>=[];for(const token of text.match(/"(?:\\.|[^"\\])*"|[{}\[\]:,]|[^\s{}\[\]:,]+/g)??[]){let top=stack.at(-1);if(token==='{'||token==='['){stack.push({object:token==='{',key:token==='{',seen:new Set()});continue;}if(token==='}'||token===']'){stack.pop();continue;}if(token===','){if(top?.object)top.key=true;continue;}if(token===':'){if(top)top.key=false;continue;}if(top?.object&&top.key&&token.startsWith('"')){const key=JSON.parse(token) as string;if(top.seen.has(key))throw new Error('duplicate');top.seen.add(key);top.key=false;}}}
+export function inspectDeploymentRecord(text:string|undefined,dep:NoticeVaultDeployment|undefined):DeploymentAssessment{
+ const errors:string[]=[];const add=(ok:boolean,code:string)=>{if(!ok)errors.push(code);};
+ if(text===undefined)return Object.freeze({state:'BLOCKED',executionEnabled:false,runtimeVerified:false,diagnostics:Object.freeze(['DEPLOYMENT_RECORD_REQUIRED'])});
+ let value:unknown;try{if(text.length===0||text.length>65536)throw new Error('size');value=JSON.parse(text);uniqueKeys(text);}catch{return Object.freeze({state:'BLOCKED',executionEnabled:false,runtimeVerified:false,diagnostics:Object.freeze(['INVALID_DEPLOYMENT_RECORD_JSON'])});}
+ const r=object(value);const keys=['schemaVersion','recordKind','status','environment','chainId','rpcOrigins','explorerOrigin','token','factory','build','verification','approvalRecord','commands','evidence','externalActions'];
+ add(Object.keys(r).every(k=>keys.includes(k)||k==='instruction')&&keys.every(k=>Object.hasOwn(r,k)),'RECORD_SCHEMA');
+ add(r.schemaVersion===1&&r.recordKind==='DEPLOYMENT_RECORD'&&r.status==='EXECUTED','EXECUTED_RECORD_REQUIRED');
+ add(!!dep&&['ARC_TESTNET','ARC_MAINNET'].includes(dep.configIdentity)&&dep.isLive===arcDeployment(dep.configIdentity).isLive&&r.environment===dep.configIdentity&&r.chainId===String(dep.chainId)&&dep.chainId===arcDeployment(dep.configIdentity).chainId,'DEPLOYMENT_IDENTITY_MISMATCH');
+ add(Array.isArray(r.rpcOrigins)&&r.rpcOrigins.length===2&&r.rpcOrigins.every(x=>url(x,true))&&new Set(r.rpcOrigins.map(x=>new URL(x as string).origin)).size===2,'TWO_DISTINCT_RPC_ORIGINS_REQUIRED');add(url(r.explorerOrigin,true),'EXPLORER_ORIGIN');
+ const t=object(r.token),f=object(r.factory),b=object(r.build),v=object(r.verification),te=object(t.verificationEvidence),d=object(v.signatureDomain);
+ add(exact(t,['address','decimals','officialSource','verificationBlockHash','verificationEvidence'])&&nonzero(t.address,A)&&t.address===dep?.allowlistedToken&&t.decimals===6&&url(t.officialSource)&&nonzero(t.verificationBlockHash,H)&&exact(te,['reference','runtimeCodeHash'])&&te.runtimeCodeHash===dep?.expectedTokenCodeHash&&nonzero(te.runtimeCodeHash,H),'TOKEN_EVIDENCE_MISMATCH');
+ add(exact(f,['address','guardian','factoryCapBaseUnits','agreementCapBaseUnits','creationPaused','deploymentTransactionHash','creationBlock','runtimeCodeHash'])&&nonzero(f.address,A)&&f.address===dep?.factoryAddress&&nonzero(f.guardian,A)&&nonzero(f.runtimeCodeHash,H)&&f.runtimeCodeHash===dep?.expectedFactoryCodeHash&&nonzero(f.deploymentTransactionHash,H)&&typeof f.creationPaused==='boolean'&&uint(f.creationBlock)&&BigInt(f.creationBlock)<(1n<<64n),'FACTORY_EVIDENCE_MISMATCH');
+ add(uint(f.factoryCapBaseUnits)&&uint(f.agreementCapBaseUnits)&&BigInt(f.agreementCapBaseUnits)>0n&&BigInt(f.factoryCapBaseUnits)>=BigInt(f.agreementCapBaseUnits),'INVALID_FACTORY_CAPS');
+ add(exact(b,['sourceCommit','compiler','compilerSettings','dependencyLockHash','artifactHash'])&&typeof b.sourceCommit==='string'&&/^[0-9a-f]{40}$/i.test(b.sourceCommit)&&typeof b.compiler==='string'&&/^solc [0-9]+\.[0-9]+\.[0-9]+(?:[+.-][a-zA-Z0-9.-]+)?$/.test(b.compiler)&&Object.keys(object(b.compilerSettings)).length>0&&nonzero(b.dependencyLockHash,H)&&nonzero(b.artifactHash,H),'BUILD_EVIDENCE_REQUIRED');
+ add(exact(v,['signatureDomain','sourceVerificationUrl','constructorArgumentsHash','independentReviewReference'])&&exact(d,['name','version','chainId','verifyingContract'])&&d.name==='NoticeVaultAgreement'&&d.version==='1'&&d.chainId===String(dep?.chainId)&&d.verifyingContract===dep?.factoryAddress&&url(v.sourceVerificationUrl)&&nonzero(v.constructorArgumentsHash,H),'VERIFICATION_BINDING_MISMATCH');
+ const evidence=new Map<string,string>();add(Array.isArray(r.evidence)&&r.evidence.length>0&&r.evidence.length<=100,'EVIDENCE_REFERENCES_REQUIRED');
+ for(const entry of Array.isArray(r.evidence)?r.evidence:[]){const e=object(entry);const valid=exact(e,['id','kind','sha256'])&&typeof e.id==='string'&&/^[-a-zA-Z0-9_]{1,128}$/.test(e.id)&&typeof e.kind==='string'&&['TOKEN_VERIFICATION','INDEPENDENT_REVIEW','APPROVAL','COMMAND_LOG','DEPLOYMENT_RECEIPT'].includes(e.kind)&&nonzero(e.sha256,H)&&!evidence.has(e.id);add(valid,'INVALID_EVIDENCE_REFERENCE');if(valid)evidence.set(e.id as string,e.kind as string);}
+ const ref=(id:unknown,kind:string)=>typeof id==='string'&&evidence.get(id)===kind;
+ add(ref(te.reference,'TOKEN_VERIFICATION'),'TOKEN_REFERENCE_REQUIRED');add(ref(v.independentReviewReference,'INDEPENDENT_REVIEW'),'REVIEW_REFERENCE_REQUIRED');add(ref(r.approvalRecord,'APPROVAL'),'APPROVAL_REFERENCE_REQUIRED');
+ add(Array.isArray(r.commands)&&r.commands.length>0&&r.commands.every(id=>ref(id,'COMMAND_LOG')),'COMMAND_REFERENCES_REQUIRED');
+ add(Array.isArray(r.externalActions)&&r.externalActions.length>0&&r.externalActions.every(id=>ref(id,'DEPLOYMENT_RECEIPT')),'DEPLOYMENT_RECEIPT_REFERENCE_REQUIRED');
+ if(errors.length)return Object.freeze({state:'BLOCKED',executionEnabled:false,runtimeVerified:false,diagnostics:Object.freeze([...new Set(errors)])});
+ return Object.freeze({state:'RECORD_COMPLETE_UNVERIFIED',executionEnabled:false,runtimeVerified:false,recordHash:sha256(toHex(text)).slice(2),creationBlock:f.creationBlock as string,diagnostics:Object.freeze(['RUNTIME_EVIDENCE_REQUIRED','INDEPENDENT_ARTIFACT_REVIEW_REQUIRED','PRODUCTION_EXECUTION_DISABLED'])});
+}

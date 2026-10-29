@@ -1,0 +1,14 @@
+{
+  "name": "@noticevault/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "check": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "~7.0.2",
+    "@types/node": "^24.0.0"
+  }
+}

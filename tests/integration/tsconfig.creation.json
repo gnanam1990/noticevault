@@ -1,0 +1,12 @@
+{
+  "extends": "../../apps/recovery/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../..",
+    "noEmit": true
+  },
+  "include": [
+    "operator-*.ts",
+    "../../apps/api/src/server.ts"
+  ],
+  "exclude": []
+}

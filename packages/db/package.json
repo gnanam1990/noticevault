@@ -1,0 +1,21 @@
+{
+  "name": "@noticevault/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "check": "tsc --noEmit -p tsconfig.json",
+    "migrate": "bun run src/migrate.ts",
+    "test": "vitest run --reporter=verbose"
+  },
+  "dependencies": {
+    "pg": "^8.13.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.11.10",
+    "typescript": "~7.0.2",
+    "vitest": "^3.2.7"
+  }
+}

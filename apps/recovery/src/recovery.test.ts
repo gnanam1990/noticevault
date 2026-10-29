@@ -1,0 +1,22 @@
+import {describe,it,expect,vi} from 'vitest';
+import {keccak256} from 'viem';
+import {agreementFixture,G,F} from './fixture';
+import {createRecoveryReader} from './recovery';
+const code='0x60026002' as const;
+function setup(){const f=agreementFixture();const reader={...f.rpc,getBytecode:async(a:Parameters<typeof f.rpc.getBytecode>[0])=>a.address===G?code:f.rpc.getBytecode(a),readContract:async(a:Parameters<typeof f.rpc.readContract>[0])=>a.functionName==='factory'?F:f.rpc.readContract(a)};return{f,reader,config:{deployment:f.dep,agreementCodeHash:keccak256(code),provenance:'SYNTHETIC' as const}};}
+describe('read-only recovery',()=>{
+it('uses actual SDK observer and exact fixed beneficiaries',async()=>{const s=setup();const r=await createRecoveryReader(s.config,s.reader,{...s.reader}).inspect(G);expect(r.identity.agreement).toBe(G);expect(r.claims.provider.recipient).toBe(s.f.terms.provider);expect(r.claims.clientRefund.recipient).toBe(s.f.terms.client);expect(r.executionEnabled).toBe(false);expect(r.accounting.regularFunded).toBe('3000000');expect(r.claims.provider.amount).toMatch(/^\d+$/);});
+it('rejects malformed address before reads',async()=>{const s=setup();await expect(createRecoveryReader(s.config,s.reader,{...s.reader}).inspect('bad')).rejects.toThrow('INVALID_AGREEMENT');});
+it('rejects unavailable provider without fabricated balances',async()=>{const s=setup();await expect(createRecoveryReader(s.config,{...s.reader,getChainId:async()=>{throw Error('offline')}},{...s.reader}).inspect(G)).rejects.toThrow();});
+it('rejects provider disagreement',async()=>{const s=setup();await expect(createRecoveryReader(s.config,s.reader,{...s.reader,getChainId:async()=>1}).inspect(G)).rejects.toThrow();});
+it('rejects mismatched child bytecode',async()=>{const s=setup();await expect(createRecoveryReader({...s.config,agreementCodeHash:keccak256('0x6003')},s.reader,{...s.reader}).inspect(G)).rejects.toThrow('AGREEMENT_CODE_MISMATCH');});
+it('rejects substituted child factory',async()=>{const s=setup();const bad={...s.reader,readContract:async(a:Parameters<typeof s.reader.readContract>[0])=>a.functionName==='factory'?G:s.reader.readContract(a)};await expect(createRecoveryReader(s.config,bad,{...bad}).inspect(G)).rejects.toThrow('AGREEMENT_FACTORY_MISMATCH');});
+it('rejects reused provider object',()=>{const s=setup();expect(()=>createRecoveryReader(s.config,s.reader,s.reader)).toThrow('DISTINCT_READERS_REQUIRED');});
+it('rejects imported manifest substitution before reader use',async()=>{const s=setup();let calls=0;const rpc={...s.reader,getChainId:async()=>{calls++;return 5042002;}};await expect(createRecoveryReader(s.config,rpc,{...rpc}).inspect(G,JSON.stringify({...s.f.dep,factoryAddress:G},(_,v)=>typeof v==='bigint'?String(v):v))).rejects.toThrow('MANIFEST_POLICY_MISMATCH');expect(calls).toBe(0);});
+it('rejects malformed imported manifest',async()=>{const s=setup();await expect(createRecoveryReader(s.config,s.reader,{...s.reader}).inspect(G,'{')).rejects.toThrow();});
+it('rejects same-address different chain',async()=>{const s=setup();const wrong={...s.reader,getChainId:async()=>1};await expect(createRecoveryReader(s.config,wrong,{...wrong}).inspect(G)).rejects.toThrow('EVIDENCE_UNAVAILABLE');});
+it('rejects final canonical block changes',async()=>{const s=setup();let calls=0;const make=()=>({...s.reader,getBlock:async(q:{blockTag:'latest'}|{blockNumber:bigint})=>{const b=await s.reader.getBlock(q as {blockNumber:bigint});return ++calls>4?{...b,hash:('0x'+'ff'.repeat(32)) as typeof b.hash}:b;}});await expect(createRecoveryReader(s.config,make(),make()).inspect(G)).rejects.toThrow();});
+it('times out unavailable reads without success output',async()=>{vi.useFakeTimers();try{const s=setup();const blocked={...s.reader,getChainId:()=>new Promise<number>(()=>{})};const result=createRecoveryReader(s.config,blocked,{...blocked}).inspect(G);const check=expect(result).rejects.toThrow('EVIDENCE_UNAVAILABLE');await vi.advanceTimersByTimeAsync(5001);await check;}finally{vi.useRealTimers();}});
+it('reports zero claim truthfully and does not expose a signer',async()=>{const s=setup();const reader=createRecoveryReader(s.config,s.reader,{...s.reader});const r=await reader.inspect(G);expect(r.claims.clientRefund.outcome).toBe('NO_REFUNDABLE_AMOUNT');expect(Object.keys(reader)).toEqual(['inspect']);expect(r.limitations.some(x=>x.includes('Unknown'))).toBe(true);});
+
+});

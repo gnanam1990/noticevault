@@ -1,0 +1,22 @@
+{
+  "name": "@noticevault/sdk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "generate-abi": "bun run scripts/generate-abi.ts",
+    "check:abi-drift": "bun run scripts/generate-abi.ts && git diff --exit-code src/generated/",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --reporter=verbose"
+  },
+  "dependencies": {
+    "@noticevault/domain": "workspace:*",
+    "viem": "^2.56.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "~7.0.2",
+    "vitest": "^3.2.7"
+  }
+}

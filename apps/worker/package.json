@@ -1,0 +1,23 @@
+{
+  "name": "@noticevault/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/main.ts",
+    "start": "bun run src/main.ts",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "config:check": "bun run src/main.ts --check"
+  },
+  "devDependencies": {
+    "typescript": "~7.0.2",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.11.10"
+  },
+  "dependencies": {
+    "viem": "^2.56.3",
+    "pg": "^8.13.3",
+    "@noticevault/db": "workspace:*",
+    "@noticevault/api": "workspace:*"
+  }
+}

@@ -1,0 +1,9 @@
+import {it,expect} from 'vitest';
+import {creationAttemptStore} from './creation-attempt-store.js';
+import type {Attempt} from './transaction-review.js';
+function storage(){const m=new Map<string,string>();return {m,getItem:(k:string)=>m.get(k)??null,setItem:(k:string,v:string)=>{m.set(k,v);},key:(i:number)=>[...m.keys()][i]??null,get length(){return m.size;}};}
+const unknown:Attempt={source:'SYNTHETIC',key:'uncertain',status:'unknown',chainId:'31337'};
+it('locks creation and approval across account changes and reload',()=>{const s=storage(),a=creationAttemptStore(s,'31337','w','d','approve-creation');a.write(unknown);expect(creationAttemptStore(s,'31337','w','d','create-agreement').read()).toEqual(unknown);});
+it('preserves legacy unknown bytes and blocks both actions',()=>{const s=storage(),k='noticevault:synthetic-attempt:v1:old-account:31337:w:d',raw=JSON.stringify(unknown);s.setItem(k,raw);for(const action of ['approve-creation','create-agreement'] as const)expect(creationAttemptStore(s,'31337','w','d',action).read()).toEqual(unknown);expect(s.getItem(k)).toBe(raw);});
+it('preserves corrupt legacy data and fails closed',()=>{const s=storage(),k='noticevault:synthetic-attempt:v1:old:31337:w:d';s.setItem(k,'broken');expect(()=>creationAttemptStore(s,'31337','w','d','approve-creation').read()).toThrow();expect(s.getItem(k)).toBe('broken');});
+it('retains terminal approval history while allowing separate creation review',()=>{const s=storage(),a=creationAttemptStore(s,'31337','w','d','approve-creation');a.write(unknown);a.write({...unknown,status:'confirmed'});expect(creationAttemptStore(s,'31337','w','d','create-agreement').read()).toBeNull();expect(a.read()?.status).toBe('confirmed');expect(s.getItem('noticevault:synthetic-creation:v1:31337:w:d')).toContain('unknown');});

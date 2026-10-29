@@ -1,0 +1,43 @@
+{
+  "name": "noticevault",
+  "main": "src/entry.ts",
+  "compatibility_date": "2026-10-25",
+  "workers_dev": false,
+  "send_metrics": false,
+  "assets": {
+    "directory": "../../dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/api/*",
+      "/v1/*"
+    ]
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "API_HOST",
+        "class_name": "NoticeVaultApi"
+      },
+      {
+        "name": "INDEXER",
+        "class_name": "NoticeVaultIndexer"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "noticevault-api-v1",
+      "new_sqlite_classes": [
+        "NoticeVaultApi",
+        "NoticeVaultIndexer"
+      ]
+    }
+  ],
+  "vars": {
+    "PUBLIC_ORIGIN": "",
+    "CONFIG_IDENTITY": "ARC_TESTNET",
+    "PGSCHEMA": "noticevault",
+    "INDEXER_ENABLED": "false"
+  }
+}

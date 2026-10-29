@@ -1,0 +1,1 @@
+{"extends":"./tsconfig.creation.json","include":["workspace-product-postgres.ts","operator-granted-creation-postgres.ts","../../apps/api/src/server.ts"],"exclude":[]}

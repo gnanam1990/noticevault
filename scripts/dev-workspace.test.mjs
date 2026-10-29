@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {spawnSync} from 'node:child_process';
+import {startupIssues} from './dev-workspace.mjs';
+const base={CONFIG_IDENTITY:'ARC_TESTNET',PGHOST:'127.0.0.1',PGUSER:'synthetic',PGPASSWORD:'synthetic-only',PGDATABASE:'noticevault_dev_synthetic',SESSION_SECRET:'synthetic-only-session-secret-32-characters',COOKIE_DOMAIN:'localhost',ALLOWED_ORIGINS:'http://localhost:5173',ALLOWED_DOMAINS:'localhost',NOTICEVAULT_DEPLOYMENT_MANIFEST:'/synthetic/manifest.json'};
+await test('complete non-live shape still requires separate manifest validation',()=>assert.deepEqual(startupIssues(base),[]));
+await test('test-only authentication cannot be presented as authenticated workspace',()=>assert.match(startupIssues({...base,CONFIG_IDENTITY:'LOCAL_FIXTURE'}).join(' '),/test-only/));
+await test('operator inputs cannot enable live actions through dev startup',()=>assert.match(startupIssues({...base,NOTICEVAULT_OPERATOR_APPROVAL_CONFIG:'/synthetic/operator.json'}).join(' '),/not permitted/));
+await test('unrelated remote database and short session secret are rejected',()=>{const issues=startupIssues({...base,PGDATABASE:'production',PGHOST:'db.example.invalid',SESSION_SECRET:'short'});assert.equal(issues.length,3)});
+await test('missing-config CLI exits before startup without disclosing supplied secret',()=>{const secret='synthetic-sensitive-value-never-print';const r=spawnSync('bun',['--no-env-file','run','scripts/dev-workspace.mjs','--check'],{cwd:new URL('../',import.meta.url),env:{PATH:process.env.PATH,SESSION_SECRET:secret},encoding:'utf8'});assert.equal(r.status,2);assert.match(r.stderr,/Missing PGHOST/);assert.equal((r.stderr+r.stdout).includes(secret),false)});

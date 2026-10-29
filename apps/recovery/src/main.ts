@@ -1,0 +1,27 @@
+import './style.css';
+import {parseRecoveryConfig,createConfiguredReader} from './config';
+import {trustedConfigText} from './trusted-config';
+import {stringify} from './recovery';
+import type {RecoveryReport} from './recovery';
+const element=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
+const form=element<HTMLFormElement>('recovery-form'),address=element<HTMLInputElement>('agreement'),manifest=element<HTMLTextAreaElement>('manifest'),button=element<HTMLButtonElement>('inspect'),errors=element<HTMLDivElement>('errors'),result=element<HTMLElement>('result');
+let generation=0,report:RecoveryReport|null=null;
+element('configuration').textContent=trustedConfigText?'Operator configuration bundled; verify its artifact identity before relying on it. Live acceptance is not established by this label.':'Not configured: no trusted deployment or reader origins are bundled. No network request will be made. Obtain an independently reviewed recovery artifact; do not paste secrets.';
+function invalidate(){generation++;report=null;result.hidden=true;button.disabled=false;element('progress').textContent='';}
+form.addEventListener('input',invalidate);
+form.addEventListener('submit',async event=>{event.preventDefault();invalidate();const current=generation;errors.hidden=true;errors.replaceChildren();let invalid=false;
+ for(const [input,id,valid,message] of [[address,'agreement-error',/^0x[0-9a-fA-F]{40}$/.test(address.value)&&!/^0x0{40}$/.test(address.value),'Enter a full nonzero agreement address.'],[manifest,'manifest-error',manifest.value.length>0&&manifest.value.length<=16384,'Enter a deployment manifest up to 16 KiB.']] as const){element(id).textContent=valid?'':message;input.setAttribute('aria-invalid',String(!valid));if(!valid){invalid=true;const link=document.createElement('a');link.href='#'+input.id;link.textContent=message;errors.append(link,document.createElement('br'));}}
+ if(invalid){errors.hidden=false;errors.focus();return;}button.disabled=true;element('progress').textContent='Reading and comparing pinned contract evidence…';
+ try{if(!trustedConfigText)throw Error('RECOVERY_NOT_CONFIGURED');const cfg=parseRecoveryConfig(trustedConfigText);const value=await createConfiguredReader(cfg).inspect(address.value,manifest.value);if(current!==generation)return;report=value;render(value);result.hidden=false;element('result-title').focus();}
+ catch(error){if(current!==generation)return;errors.textContent=(error instanceof Error&&/^[A-Z_:]+$/.test(error.message)?error.message:'RECOVERY_UNAVAILABLE')+'. No balance or retry permission established. Your input is preserved.';errors.hidden=false;errors.focus();}
+ finally{if(current===generation){button.disabled=false;element('progress').textContent='';}}
+});
+function render(r:RecoveryReport){const parent=element('report');parent.replaceChildren();const note=document.createElement('p');note.className='notice';note.textContent=r.source+' • Pinned observation, not a confirmed transfer or live spendable balance.';parent.append(note);
+ const rows:Record<string,string|number|null>={Chain:r.identity.chainId,Agreement:r.identity.agreement,Factory:r.identity.factory,Token:r.identity.token,'Token decimals':6,'Agreement runtime code hash':r.identity.agreementCodeHash,'Factory runtime code hash':r.identity.factoryCodeHash,'Token runtime code hash':r.identity.tokenCodeHash,'Terms digest':r.identity.termsDigest,'Block number':r.observation.number,'Block hash':r.observation.hash,'Block timestamp (Unix seconds)':r.observation.timestamp,Phase:r.state.phase,'Ordinary funding checkpoint (Unix seconds)':r.state.checkpoint,'Notice start (Unix seconds)':r.state.noticeStart,'Notice end (Unix seconds; conditional before notice)':r.state.noticeEnd,'If no further funding, conditional notice end (Unix seconds)':r.state.conditionalNoticeEnd,'Notice reason':r.state.noticeReason,'Provider beneficiary':r.claims.provider.recipient,'Provider entitlement at observed block (base units)':r.claims.provider.amount,'Client refund beneficiary':r.claims.clientRefund.recipient,'Client refundable at observed block (base units)':r.claims.clientRefund.amount,...r.accounting};
+ const dl=document.createElement('dl');for(const [key,value] of Object.entries(rows)){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=key;dd.textContent=value===null?'Not started / unavailable':String(value);dl.append(dt,dd);}parent.append(dl);
+ const heading=document.createElement('h3');heading.textContent='Fixed-destination call guidance';const text=document.createElement('p');text.textContent='claimProvider() always pays the immutable provider; claimClientRefund() always pays the immutable client. There is no recipient parameter. Any permitted caller supplies gas. Zero entitlement is no payment, not a paid outcome. This artifact does not prepare, sign or submit these calls.';parent.append(heading,text);const ul=document.createElement('ul');for(const text of r.limitations){const li=document.createElement('li');li.textContent=text;ul.append(li);}parent.append(ul);
+}
+element('export').addEventListener('click',()=>{if(!report)return;const url=URL.createObjectURL(new Blob([stringify(report)+'\n'],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='noticevault-observation-'+report.identity.chainId+'-'+report.identity.agreement+'.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),0);});
+
+import {installClaimUi} from './claim-ui';
+installClaimUi();

@@ -1,0 +1,8 @@
+{
+  "name": "@noticevault/hosting-probe",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "find-my-way": "9.9.0"
+  }
+}

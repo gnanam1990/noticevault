@@ -1,0 +1,48 @@
+// Actual authenticated API and disposable PostgreSQL; all chain data and trust bytes are synthetic.
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {createPool,runMigrations,createWorkspace,addMembership,createSession,createDraft} from '../../packages/db/src/index';
+import {buildServer} from '../../apps/api/src/server';
+import {ingestBlock} from '../../apps/worker/src/ingest';
+import {decodeFactoryBlock} from '../../apps/worker/src/decode';
+import {canonicalCreation} from '../../apps/api/src/agreement-association';
+import {evidenceHash} from '../../apps/api/src/evidence-bundle';
+import {evidenceFixture} from '../../apps/recovery/src/evidence-bundle.fixture';
+Reflect.set(process.env,'NODE_ENV','test');
+const schema='nv_final_code',db={host:'/tmp/nv-socket',port:5432,user:'postgres',password:'',database:'noticevault_it_20261023',schema},pool=createPool(db);let app:Awaited<ReturnType<typeof buildServer>>|undefined;
+try{
+ assert.deepEqual((await runMigrations(pool,schema,'/home/user/app/packages/db/src/migrations')).errors,[]);const f=await evidenceFixture(),dep=f.trusted.config.deployment,ws=randomUUID(),sid=randomUUID(),rid=randomUUID(),outsider=randomUUID();
+ const policy={version:1,mode:'SYNTHETIC',chainId:'5042002',factory:f.F,token:f.T,tokenDecimals:6,factoryCodeHash:dep.expectedFactoryCodeHash!,tokenCodeHash:dep.expectedTokenCodeHash!};const stream={streamId:'canonical',source:'SYNTHETIC',chainId:'5042002',factory:f.F,anchorNumber:String(f.old-1n),anchorHash:f.anchorHash,deploymentPolicy:policy};
+ const raw={chainId:'5042002',factory:f.F,number:String(f.old),hash:f.oldHash,parentHash:f.anchorHash,logs:[{...f.creationLog,blockNumber:'0x'+f.old.toString(16),transactionIndex:'0x0',logIndex:'0x0'}]};await ingestBlock(pool,schema,stream,decodeFactoryBlock(stream,raw));
+ await createWorkspace(pool,schema,ws,'Synthetic canonical export',f.C);await addMembership(pool,schema,ws,f.C,'owner',5042002n);await createSession(pool,schema,sid,f.C,5042002n,new Date(Date.now()+3600000));await createSession(pool,schema,outsider,f.P,5042002n,new Date(Date.now()+3600000));
+ const c=await pool.connect();let proof;try{proof=await canonicalCreation(c,schema,'canonical',f.G);}finally{c.release();}await pool.query('INSERT INTO '+schema+'.workspace_agreement_associations(workspace_id,stream_id,agreement,fingerprint,proof,associated_by,associated_chain,audience) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8)',[ws,'canonical',f.G,proof.fingerprint,JSON.stringify(proof),f.C,'5042002','current-and-future-workspace-members']);
+ const json=(v:unknown)=>JSON.stringify(v,(_k,x)=>typeof x==='bigint'?x.toString():x),terms=JSON.parse(json(f.terms));await createDraft(pool,schema,rid,ws,f.C,terms,f.documentHash);await pool.query('INSERT INTO '+schema+'.draft_revisions(id,family_id,workspace_id,revision_number,chain_id,provider_address,document_bytes,document_hash,deployment_json) VALUES($1,$1,$2,1,5042002,$3,$4,$5,$6::jsonb)',[rid,ws,f.P,Buffer.from(f.document),f.documentHash,json(dep)]);
+ const cfg={configIdentity:'ARC_TESTNET' as const,consentDeployment:dep,port:3001,host:'127.0.0.1',db,sessionSecret:'synthetic_only_fixture_secret_32_bytes',cookieDomain:'localhost',allowedOrigins:['http://localhost:5173'],sessionTtlSecs:86400,challengeTtlSecs:300,allowedDomains:['localhost']};app=await buildServer({cfg,pool,skipMigration:true,logger:false,evidenceCollector:f.collector});app.addHook('onError',async(_r,_p,e)=>console.log('EXPECTED_OR_DIAGNOSTIC',e.message));await app.ready();
+ const request=async(method:'GET'|'POST'|'PUT'|'DELETE',url:string,payload?:unknown,session=sid,key=randomUUID())=>app!.inject({method,url,headers:{origin:'http://localhost:5173','x-requested-with':'XMLHttpRequest','idempotency-key':key,cookie:'nv_session='+session},...(payload===undefined?{}:{payload:payload as object})});
+let r=await request('GET','/v1/health/live');assert.equal(r.statusCode,200,r.body);assert.equal(r.json().data.status,'ok');assert.ok(r.json().requestId&&r.json().observedAt);
+r=await request('GET','/v1/health/ready');assert.equal(r.statusCode,503);assert.equal(r.json().error.retryable,false);
+r=await request('GET','/v1/me');assert.equal(r.statusCode,200,r.body);
+r=await request('POST','/v1/auth/challenge',{address:f.C,chainId:5042002});assert.equal(r.statusCode,200,r.body);assert.ok(r.json().data.challengeId);
+const challengeId=r.json().data.challengeId;r=await request('POST','/v1/auth/session',{challengeId,signature:'0xdeadbeef'});assert.ok([400,401,403].includes(r.statusCode),r.body);assert.equal(r.json().error.retryable,false);
+const payload={termsJson:terms,documentText:f.document,expectedRevisionNumber:0},key=randomUUID();
+r=await request('POST','/v1/workspaces/'+ws+'/drafts',payload,sid,key);assert.equal(r.statusCode,201,r.body);const draft=r.json().data;assert.equal(draft.immutable,true);assert.ok(draft.id);
+r=await request('POST','/v1/workspaces/'+ws+'/drafts',payload,sid,key);assert.equal(r.json().data.id,draft.id);
+r=await request('GET','/v1/drafts/'+draft.id);assert.equal(r.statusCode,200,r.body);
+r=await request('GET','/v1/drafts/'+draft.id,undefined,outsider);assert.equal(r.statusCode,403,r.body);
+r=await request('POST','/v1/drafts/'+draft.id+'/revisions',{...payload,expectedRevisionNumber:1});assert.equal(r.statusCode,201,r.body);const revision=r.json().data;assert.equal(revision.revisionNumber,2);
+r=await request('POST','/v1/revisions/'+revision.id+'/provider-grants',{});assert.equal(r.statusCode,201,r.body);const grant=r.json().data;
+r=await request('GET','/v1/revisions/'+revision.id+'/acceptance-packet',undefined,outsider);assert.equal(r.statusCode,200,r.body);
+r=await request('POST','/v1/revisions/'+revision.id+'/acceptance',{binding:'0'.repeat(64),signature:'0xdeadbeef'},outsider);assert.equal(r.statusCode,503,r.body);
+r=await request('DELETE','/v1/revisions/'+revision.id+'/provider-grants/'+grant.id);assert.ok([200,204].includes(r.statusCode),r.body);
+r=await request('GET','/v1/revisions/'+revision.id+'/acceptance-packet',undefined,outsider);assert.equal(r.statusCode,403,r.body);
+r=await request('POST','/v1/revisions/'+revision.id+'/prepare-approval',{});assert.equal(r.statusCode,503,r.body);
+r=await request('DELETE','/v1/drafts/'+draft.id);assert.equal(r.statusCode,409,r.body);
+r=await request('POST','/v1/workspaces/'+ws+'/drafts',payload);assert.equal(r.statusCode,201,r.body);const disposableDraft=r.json().data.id;
+r=await request('DELETE','/v1/drafts/'+disposableDraft,undefined,outsider);assert.equal(r.statusCode,403,r.body);r=await request('DELETE','/v1/drafts/'+disposableDraft);assert.equal(r.statusCode,200,r.body);assert.equal(r.json().data.financialEffect,'NONE');r=await request('GET','/v1/drafts/'+disposableDraft);assert.equal(r.statusCode,404,r.body);
+r=await request('GET','/v1/agreements?workspaceId='+ws);assert.equal(r.statusCode,200,r.body);
+r=await request('GET','/v1/chain/5042002/agreements/'+f.G);assert.equal(r.statusCode,200,r.body);assert.equal(r.json().data.identity.agreement,f.G.toLowerCase());assert.ok(!r.body.includes(f.document));assert.equal(r.headers['content-disposition'],undefined);
+r=await request('GET','/v1/ops/status');assert.equal(r.statusCode,200,r.body);assert.equal(r.json().data.identifiersRedacted,true);assert.ok(!r.body.includes(ws));
+r=await request('GET','/v1/ops/status',undefined,outsider);assert.equal(r.statusCode,403,r.body);
+r=await request('POST','/v1/chain/1/agreements/'+f.G+'/intents',{workspaceId:ws,action:'CLAIM_PROVIDER',expectedBinding:'0'.repeat(64)});assert.equal(r.statusCode,400,r.body);
+console.log('PASS actual /v1 envelopes, challenge mapping, immutable create/revision/idempotency, private authorization/grant revocation, fail-closed runtime, public snapshot, owner-scoped ops and wrong-chain refusal');
+}finally{await app?.close();await pool.end();}

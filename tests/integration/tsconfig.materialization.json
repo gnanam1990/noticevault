@@ -1,0 +1,11 @@
+{
+  "extends": "../../apps/api/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../..",
+    "noEmit": true
+  },
+  "include": [
+    "materialization.ts"
+  ],
+  "exclude": []
+}

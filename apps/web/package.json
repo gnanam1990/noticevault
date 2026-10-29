@@ -1,0 +1,14 @@
+{
+  "name": "@noticevault/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'M06 NOT_RUN: Client console UI not yet implemented'",
+    "start": "echo 'M06 NOT_RUN: Client console UI not yet implemented'"
+  },
+  "devDependencies": {
+    "typescript": "~7.0.2",
+    "@types/node": "^24.0.0"
+  }
+}

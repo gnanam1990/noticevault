@@ -1,0 +1,6 @@
+{
+ "name":"@noticevault/cloudflare","private":true,"type":"module",
+ "scripts":{"check":"tsc --noEmit -p tsconfig.json"},
+ "dependencies":{"pg":"8.23.1","@noticevault/api":"workspace:*","@noticevault/db":"workspace:*","@noticevault/worker":"workspace:*"},
+ "devDependencies":{"@types/pg":"^8.11.10","@types/node":"^24.0.0","typescript":"~7.0.2"}
+}

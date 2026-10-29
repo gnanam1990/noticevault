@@ -1,0 +1,62 @@
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {privateKeyToAccount} from 'viem/accounts';
+import {decodeFunctionData} from 'viem';
+import type {Hex} from 'viem';
+import {createPool,runMigrations,createWorkspace,addMembership,createDraft,createAcceptedConsent,setDraftStatus} from '../../packages/db/src/index.js';
+import {buildTypedData,computeTermsDigest,FACTORY_ABI} from '../../packages/sdk/src/index.js';
+import type {TermsInput} from '../../packages/sdk/src/index.js';
+import {buildConfiguredServer} from '../../apps/api/src/configured-startup.js';
+import {composeReadOnlyRuntime} from '../../apps/api/src/configured-runtime.js';
+import type {RuntimeInputs,RuntimeReader} from '../../apps/api/src/configured-runtime.js';
+import {configuredFixture} from '../../apps/api/src/test/configured-runtime-fixture.js';
+import {preparationBinding} from '../../apps/api/src/attempt-evidence.js';
+import type {AttemptPreparation} from '../../apps/api/src/attempt-evidence.js';
+import {CreationPreparationClient} from '../../src/backend/creation-preparation.js';
+import {DurableAttemptClient} from '../../src/backend/durable-attempt.js';
+Reflect.set(process.env,'NODE_ENV','test');
+const schema='nv_configured_startup_it',db={host:'/tmp/nv-socket',port:5432,user:'postgres',password:'',database:'noticevault_it_20261023',schema},pool=createPool(db);
+const actor=privateKeyToAccount(('0x'+'11'.repeat(32)) as Hex),provider=privateKeyToAccount(('0x'+'12'.repeat(32)) as Hex);
+const f=configuredFixture(),F=f.f.descriptor.factoryAddress,T=f.f.descriptor.allowlistedToken,H='0x'+'44'.repeat(32),now=BigInt(Math.floor(Date.now()/1000));
+const terms:TermsInput={schemaVersion:1,client:actor.address,provider:provider.address,token:T,amountPerPeriod:3000000n,periodSeconds:2592000n,noticeSeconds:864000n,startAt:now+600n,clientNonce:7n,acceptanceDeadline:now+1000n,termsDocumentHash:H};
+const values:Record<string,unknown>={token:T,decimals:6,factoryCap:100000000n,agreementCap:100000000n,outstandingLiability:0n,creationPaused:false,isNonceUnavailable:false,balanceOf:100000000n,allowance:100000000n};
+let unavailable=false,wrongWallet=false,changedBranch=false;let hook:(()=>Promise<void>)|null=null;
+function reader():RuntimeReader{return {getChainId:async()=>{if(unavailable)throw new Error('RPC unavailable');return 5042002;},getBlockNumber:async()=>123n,getBlock:async()=>({number:123n,hash:changedBranch?'0x'+'99'.repeat(32):H,parentHash:'0x'+'33'.repeat(32),timestamp:now,transactions:[]}),getBytecode:async({address}:{address:string})=>address.toLowerCase()===F?'0x6001':address.toLowerCase()===T?'0x6002':'0x',readContract:async({functionName}:{functionName:string})=>{if(hook){const h=hook;hook=null;await h();}if(!(functionName in values))throw new Error('Unexpected read');return values[functionName];},getTransaction:async()=>null,getTransactionReceipt:async()=>null} as unknown as RuntimeReader;}
+const inputs:RuntimeInputs={...f.input,primary:{id:'primary',reader:reader()},verification:{id:'verification',reader:reader()},readWallet:async()=>({account:wrongWallet?provider.address:actor.address,chainId:5042002n})};
+const cfg={configIdentity:'ARC_TESTNET' as const,port:3001,host:'127.0.0.1',db,sessionSecret:'test_session_secret_32_bytes_xxx!',cookieDomain:'localhost',allowedOrigins:['http://localhost:5173'],sessionTtlSecs:86400,challengeTtlSecs:300,allowedDomains:['localhost']};
+const ws=randomUUID(),draft=randomUUID(),sid=randomUUID();let cookie='nv_session='+sid,passed=0,failed=0;let app:Awaited<ReturnType<typeof buildConfiguredServer>>|undefined;
+const headers=()=>({cookie,origin:'http://localhost:5173','x-requested-with':'XMLHttpRequest'});
+async function fetcher(path:string,init:RequestInit={}){assert.equal(init.credentials,'same-origin');assert.equal(init.cache,'no-store');const r=await app!.inject({method:(init.method??'GET') as never,url:path.slice(4),headers:headers(),...(init.body?{payload:JSON.parse(String(init.body))}:{})});return new Response(r.body,{status:r.statusCode,headers:{'content-type':String(r.headers['content-type'])}});}
+const client=new CreationPreparationClient(fetcher),attemptClient=new DurableAttemptClient(fetcher),wallet=async()=>({account:actor.address,chainId:'5042002'});
+const failure=(status:number)=>(e:unknown)=>!!e&&typeof e==='object'&&Reflect.get(e,'status')===status;
+async function check(name:string,fn:()=>Promise<void>){try{await fn();passed++;console.log('PASS',name);}catch(e){failed++;console.error('FAIL',name,e);}}
+try{
+ assert.deepEqual((await runMigrations(pool,schema,'/home/user/app/packages/db/src/migrations')).errors,[]);
+ await createWorkspace(pool,schema,ws,'Synthetic configured startup',actor.address);await addMembership(pool,schema,ws,actor.address,'owner',5042002n);
+ await pool.query('INSERT INTO '+schema+'.sessions(id,member_address,chain_id,expires_at) VALUES($1,$2,$3,$4)',[sid,actor.address.toLowerCase(),'5042002',new Date(Date.now()+3600000)]);
+ const runtime=await composeReadOnlyRuntime(inputs),dep=runtime.deployment;
+ await createDraft(pool,schema,draft,ws,actor.address,JSON.parse(JSON.stringify(terms,(_k,v)=>typeof v==='bigint'?String(v):v)),H);
+ const signature=await provider.signTypedData(buildTypedData(terms,dep));
+ await createAcceptedConsent(pool,schema,randomUUID(),draft,ws,provider.address,computeTermsDigest(terms,dep),signature,'ecdsa',123n,5042002n);await setDraftStatus(pool,schema,draft,ws,'accepted');
+ app=await buildConfiguredServer({cfg,pool,skipMigration:true,logger:false,runtimeInputs:inputs});await app.ready();
+ const ctx=await client.context(ws,draft);
+ await check('configured startup composes unsigned SDK preparation through actual client API and DB',async()=>{const r=await client.prepare(ctx,wallet);assert.equal(r.source,'SYNTHETIC');assert.equal(r.transaction.to,F);assert.equal(r.transaction.value,'0');const d=decodeFunctionData({abi:FACTORY_ABI,data:r.transaction.data as Hex});assert.equal(d.functionName,'createAgreement');});
+ await check('readiness labels synthetic provenance and never enables execution',async()=>{const r=await app!.inject('/readiness');assert.equal(r.statusCode,503);const v=r.json();assert.equal(v.state,'READ_ONLY_COMPOSED');assert.equal(v.provenance,'SYNTHETIC');assert.equal(v.executionEnabled,false);assert.equal(v.runtimeVerified,false);});
+ await check('pinned signature authentication issues a session and rejects replay',async()=>{const c=await app!.inject({method:'POST',url:'/auth/challenge',headers:headers(),payload:{address:actor.address,chainId:5042002}});assert.equal(c.statusCode,200);const q=c.json(),sig=await actor.signMessage({message:q.message});const payload={nonce:q.nonce,signature:sig,address:actor.address,chainId:5042002};const r=await app!.inject({method:'POST',url:'/auth/verify',headers:headers(),payload});assert.equal(r.statusCode,200);assert.ok(r.headers['set-cookie']);const repeat=await app!.inject({method:'POST',url:'/auth/verify',headers:headers(),payload});assert.notEqual(repeat.statusCode,200);});
+ await check('readonly reserve is refused before any row is created',async()=>{await assert.rejects(()=>attemptClient.reserve(ws,'agreement:'+F,'approve-renewal',randomUUID()),failure(503));assert.equal((await pool.query('SELECT count(*)::int n FROM '+schema+'.transaction_attempts')).rows[0].n,0);});
+ const id=randomUUID(),p:AttemptPreparation={source:'SYNTHETIC',workspaceId:ws,actor:actor.address.toLowerCase(),chainId:'5042002',resource:'agreement:'+F,action:'approve-renewal',policyHash:runtime.policyHash,cycleKey:'1',networkNonce:'99',target:T,data:'0x12345678',value:'0',issuedAt:Date.now(),discoveryAnchor:{blockNumber:'123',blockHash:H}};
+ await pool.query('INSERT INTO '+schema+'.transaction_attempts(id,workspace_id,actor,chain_id,resource,action,request_id,binding,network_nonce,preparation,state) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11)',[id,ws,p.actor,p.chainId,p.resource,p.action,randomUUID(),preparationBinding(p),p.networkNonce,JSON.stringify(p),'unknown']);
+ await check('readonly claim cannot unlock an existing unknown',async()=>{await assert.rejects(()=>attemptClient.claim(ws,id),failure(503));assert.equal((await attemptClient.get(ws,id)).state,'unknown');});
+ await check('composed discovery persists canonical progress and preserves unknown',async()=>{const r=await attemptClient.reconcile(ws,id);assert.equal(r.state,'unknown');assert.equal(r.discovery?.nextBlock,'124');});
+ await check('configured restart resumes durable progress without resubmission',async()=>{await app!.close();app=await buildConfiguredServer({cfg,pool,skipMigration:true,logger:false,runtimeInputs:inputs});await app.ready();const r=await attemptClient.reconcile(ws,id);assert.equal(r.state,'unknown');assert.equal(r.discovery?.nextBlock,'124');});
+ await check('canonical reorg preserves unknown lock and cursor',async()=>{changedBranch=true;try{const r=await attemptClient.reconcile(ws,id);assert.equal(r.state,'reorged');assert.equal(r.discovery?.nextBlock,'124');}finally{changedBranch=false;}});
+ await check('wallet change invalidates preparation',async()=>{wrongWallet=true;try{await assert.rejects(()=>client.prepare(ctx,wallet));}finally{wrongWallet=false;}});
+ await check('concurrent draft edit invalidates preparation without overwrite',async()=>{hook=async()=>{await pool.query('UPDATE '+schema+'.terms_drafts SET version=version+1 WHERE id=$1',[draft]);};await assert.rejects(()=>client.prepare(ctx,wallet),failure(409));await pool.query('UPDATE '+schema+'.terms_drafts SET version=1 WHERE id=$1',[draft]);});
+ await check('unavailable provider fails preparation without fallback',async()=>{unavailable=true;try{await assert.rejects(()=>client.prepare(ctx,wallet));}finally{unavailable=false;}});
+ await check('wrong workspace cannot read the draft',async()=>{await assert.rejects(()=>client.context(randomUUID(),draft));});
+ await check('current membership revocation denies preparation',async()=>{await pool.query('DELETE FROM '+schema+'.workspace_memberships WHERE workspace_id=$1 AND member_address=$2',[ws,actor.address.toLowerCase()]);try{await assert.rejects(()=>client.context(ws,draft));}finally{await addMembership(pool,schema,ws,actor.address,'owner',5042002n);}});
+ await check('revoked session cannot reconcile or prepare',async()=>{await pool.query('UPDATE '+schema+'.sessions SET revoked_at=clock_timestamp() WHERE id=$1',[sid]);try{await assert.rejects(()=>client.context(ws,draft),failure(401));await assert.rejects(()=>attemptClient.reconcile(ws,id),failure(401));}finally{await pool.query('UPDATE '+schema+'.sessions SET revoked_at=NULL WHERE id=$1',[sid]);}});
+ await check('configured startup rejects substituted deployment',async()=>{await assert.rejects(()=>buildConfiguredServer({cfg:{...cfg,consentDeployment:{...dep,label:'changed'}},pool,skipMigration:true,logger:false,runtimeInputs:inputs}),/DEPLOYMENT_MISMATCH/);});
+ await check('missing configured transports preserve BLOCKED_SDK',async()=>{const missing=await buildConfiguredServer({cfg,pool,skipMigration:true,logger:false});try{await missing.ready();const r=await missing.inject({method:'GET',url:'/workspaces/'+ws+'/drafts/'+draft+'/creation-context',headers:headers()});assert.equal(r.statusCode,503);assert.equal(r.json().error.code,'BLOCKED_SDK');const ready=await missing.inject('/readiness');assert.ok(ready.json().diagnostics.includes('RUNTIME_TRANSPORTS_NOT_CONFIGURED'));}finally{await missing.close();}});
+ console.log('RESULT',JSON.stringify({passed,failed}));if(failed)process.exitCode=1;
+}finally{await app?.close();await pool.end();}

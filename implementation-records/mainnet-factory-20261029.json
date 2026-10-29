@@ -1,0 +1,13 @@
+{
+  "factoryAddress": "0x801c366eb4e07162fca1f260d78338a3433d81e2",
+  "allowlistedToken": "0x3600000000000000000000000000000000000000",
+  "expectedFactoryCodeHash": "0x2bf50890f25141984a000a767b15b665cad108a64416422a2de3179d976b1006",
+  "expectedTokenCodeHash": "0xc9987bd3af6b26a030951faa7eacc017b68343aeedf3ce5fe68f821c4b93939d",
+  "tokenDecimals": 6,
+  "blockNumber": 28477599,
+  "blockHash": "0x7135cf2671b4c3264016b5434ffaa6370810225444f3b2b5b978e07b7ebfe9ec",
+  "rpc": "https://rpc.blockdaemon.mainnet.arc.io",
+  "checkedAt": "2026-10-29T12:50:17.154259+00:00",
+  "verificationScope": "Single RPC observation; hosted paired-provider runtime activation remains disabled",
+  "uiProvenance": "Codex edits applied directly through terminal in existing Arc Studio project. No Studio AI usage."
+}

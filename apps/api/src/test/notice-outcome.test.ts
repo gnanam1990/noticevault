@@ -1,0 +1,36 @@
+import {describe,it,expect,vi} from 'vitest';
+import {encodeFunctionData,encodeEventTopics,encodeAbiParameters,parseAbiParameters,keccak256} from 'viem';
+import type {Hex} from 'viem';
+import {AGREEMENT_ABI} from '@noticevault/sdk';
+import {createNoticeOutcomeVerifier,isIssuedNoticeOutcome} from '../notice-outcome.js';
+import type {NoticeReader} from '../notice-outcome.js';
+import {reconcileCanonical} from '../attempt-evidence.js';
+import type {AttemptPreparation,SyntheticAttemptAdapter} from '../attempt-evidence.js';
+const C=('0x'+'1'.repeat(40)) as Hex,P=('0x'+'2'.repeat(40)) as Hex,T=('0x'+'3'.repeat(40)) as Hex,A=('0x'+'4'.repeat(40)) as Hex,F=('0x'+'5'.repeat(40)) as Hex,H=('0x'+'a'.repeat(64)) as Hex,B=('0x'+'b'.repeat(64)) as Hex,D=('0x'+'c'.repeat(64)) as Hex,code='0x6000' as Hex;
+const terms=[1,C,P,T,100n,100n,50n,100n,0n,99n,D] as const;
+const termsHash=keccak256(encodeAbiParameters(parseAbiParameters('uint32,address,address,address,uint256,uint64,uint64,uint64,uint256,uint64,bytes32'),terms));
+function setup(){
+ const p:AttemptPreparation={source:'SYNTHETIC',workspaceId:'w',actor:C,chainId:'31337',resource:'agreement:'+A,action:'start-notice',policyHash:D,cycleKey:'notice',networkNonce:'1',target:A,data:encodeFunctionData({abi:AGREEMENT_ABI,functionName:'startNotice'}),value:'0',issuedAt:Date.now(),notice:{termsHash,agreementCodeHash:keccak256(code),regularFunded:'100',fundedThrough:'200'}};
+ const r={hash:H,blockNumber:10n,blockHash:B};
+ const state={time:150n,start:150n,reason:1,logs:true,accounting:[100n,0n,0n,0n,50n,true,150n,1,150n] as unknown[],terms:[...terms] as unknown[],code,chain:31337,factory:F,emitter:A,hash:H,block:B};
+ const receipt=()=>({transactionHash:H,blockHash:B,blockNumber:10n,transactionIndex:0,from:C,to:A,status:'success',logs:state.logs?[{address:state.emitter,topics:encodeEventTopics({abi:AGREEMENT_ABI,eventName:'NoticeStarted'}),data:encodeAbiParameters(parseAbiParameters('uint64,uint8'),[state.start,state.reason]),transactionHash:state.hash,blockHash:state.block,blockNumber:10n,transactionIndex:0,logIndex:0,removed:false}]:[]});
+ const reader=():NoticeReader=>({getChainId:async()=>state.chain,getTransactionReceipt:async()=>receipt(),getBytecode:async()=>state.code,getBlock:async()=>({number:10n,hash:B,timestamp:state.time,transactions:[H]}),readContract:async a=>a.functionName==='terms'?state.terms:a.functionName==='accounting'?state.accounting:state.factory});
+ const a=reader(),b=reader(),verify=createNoticeOutcomeVerifier({chainId:31337n,factory:F,token:T,policyHash:D},[a,b]);
+ const adapter:SyntheticAttemptAdapter={source:'SYNTHETIC',prepare:async()=>p,verifyNotice:verify,rpc:{getChainId:async()=>31337n,findTransaction:async()=>({hash:H,chainId:31337n,from:C,to:A,nonce:1n,input:p.data,value:0n}),getReceipt:async()=>({hash:H,status:'confirmed',blockNumber:10n,blockHash:B}),getBlock:async()=>({number:10n,hash:B,transactions:[H]})}};
+ return {p,r,state,a,b,verify,adapter};
+}
+describe('start-notice outcome',()=>{
+ it('issues exact canonical state outcome through reconciler',async()=>{const x=setup();const r=await reconcileCanonical(x.adapter,x.p);expect(r.state).toBe('confirmed');expect(r.proof?.outcome).toMatchObject({kind:'STATE_CHANGED',action:'start-notice',noticeStart:'150',noticeEnd:'200',reason:'CLIENT_CANCELLED'});});
+ it('preserves unknown without verifier',async()=>{const x=setup();delete x.adapter.verifyNotice;expect((await reconcileCanonical(x.adapter,x.p)).state).toBe('unknown');});
+ it('rejects fabricated issuer result',async()=>{const x=setup();x.adapter.verifyNotice=async()=>({kind:'STATE_CHANGED'} as never);await expect(reconcileCanonical(x.adapter,x.p)).rejects.toThrow();});
+ it('binds issued proof to preparation',async()=>{const x=setup(),o=await x.verify(x.p,x.r);expect(isIssuedNoticeOutcome(o,x.p,x.r)).toBe(true);expect(isIssuedNoticeOutcome(o,{...x.p,actor:P},x.r)).toBe(false);});
+ it('accepts scheduled cancellation before start',async()=>{const x=setup();x.state.time=90n;x.state.start=100n;x.state.accounting[6]=100n;expect((await x.verify(x.p,x.r)).noticeStart).toBe('100');});
+ it('uses exact missed-checkpoint boundary',async()=>{const x=setup();x.state.time=200n;x.state.start=200n;x.state.reason=2;x.state.accounting[6]=200n;x.state.accounting[7]=2;expect((await x.verify(x.p,x.r)).reason).toBe('MISSED_CHECKPOINT');});
+ it('allows later same-block payouts without attributing them to notice',async()=>{const x=setup();x.state.accounting[1]=25n;x.state.accounting[8]=125n;expect((await x.verify(x.p,x.r)).kind).toBe('STATE_CHANGED');});
+ for(const [name,mutate] of Object.entries({missingEvent:(x:ReturnType<typeof setup>)=>{x.state.logs=false;},wrongEmitter:(x:ReturnType<typeof setup>)=>{x.state.emitter=T;},wrongHash:(x:ReturnType<typeof setup>)=>{x.state.hash=D;},wrongBlock:(x:ReturnType<typeof setup>)=>{x.state.block=D;},wrongReason:(x:ReturnType<typeof setup>)=>{x.state.reason=2;},wrongStart:(x:ReturnType<typeof setup>)=>{x.state.start=149n;},wrongTerms:(x:ReturnType<typeof setup>)=>{x.state.terms[2]=C;},wrongFactory:(x:ReturnType<typeof setup>)=>{x.state.factory=T;},wrongCode:(x:ReturnType<typeof setup>)=>{x.state.code='0x6001';},wrongChain:(x:ReturnType<typeof setup>)=>{x.state.chain=1;},wrongAccounting:(x:ReturnType<typeof setup>)=>{x.state.accounting[8]=0n;},unstored:(x:ReturnType<typeof setup>)=>{x.state.accounting[5]=false;},changedCheckpoint:(x:ReturnType<typeof setup>)=>{x.p.notice!.fundedThrough='201';},wrongCall:(x:ReturnType<typeof setup>)=>{x.p.data=encodeFunctionData({abi:AGREEMENT_ABI,functionName:'materializeNotice'});}}))it('rejects '+name,async()=>{const x=setup();mutate(x);await expect(x.verify(x.p,x.r)).rejects.toThrow();});
+ it('rejects independent provider state disagreement',async()=>{const x=setup();x.b.readContract=async a=>a.functionName==='accounting'?[100n,1n,0n,0n,50n,true,150n,1,149n]:a.functionName==='terms'?x.state.terms:F;await expect(x.verify(x.p,x.r)).rejects.toThrow();});
+ it('rejects canonical block change during recheck',async()=>{const x=setup();let n=0;x.a.getBlock=async()=>({number:10n,hash:++n===1?B:D,timestamp:150n,transactions:[H]});await expect(x.verify(x.p,x.r)).rejects.toThrow();});
+ it('expires issued evidence and rejects mutation after issuance',async()=>{const x=setup(),o=await x.verify(x.p,x.r);x.p.notice!.regularFunded='200';expect(isIssuedNoticeOutcome(o,x.p,x.r)).toBe(false);x.p.notice!.regularFunded='100';vi.useFakeTimers();try{vi.setSystemTime(Date.now()+60001);expect(isIssuedNoticeOutcome(o,x.p,x.r)).toBe(false);}finally{vi.useRealTimers();}});
+ it('times out without retrying or returning partial proof',async()=>{const x=setup();vi.useFakeTimers();try{x.a.getChainId=vi.fn(()=>new Promise(()=>{}));const rejection=expect(x.verify(x.p,x.r)).rejects.toThrow('deadline');await vi.advanceTimersByTimeAsync(5001);await rejection;expect(x.a.getChainId).toHaveBeenCalledTimes(1);}finally{vi.useRealTimers();}});
+ it('rejects malformed numeric types introduced only on state recheck',async()=>{const x=setup(),original=x.a.readContract;let count=0;x.a.readContract=async a=>{const v=await original(a);return a.functionName==='accounting'&&++count===2?['100',0n,0n,0n,50n,true,150n,1,150n]:v;};await expect(x.verify(x.p,x.r)).rejects.toThrow();});
+});
