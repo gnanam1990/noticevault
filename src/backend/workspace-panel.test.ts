@@ -110,13 +110,13 @@ describe('WorkspacePanel — disconnected (no session, no wallet)', () => {
   it('renders step 3 (contract) in idle state with "sign in first" message', () => {
     const html = render({ session: null, network: testnetNetwork });
     expect(html).toContain('Contract deployment');
-    expect(html).toContain('Sign in to your workspace first');
+    expect(html).toContain('GATES CLOSED');
   });
 
   it('renders step 4 (financial) in idle state with "sign in first" message', () => {
     const html = render({ session: null, network: testnetNetwork });
     expect(html).toContain('Financial readiness');
-    expect(html).toContain('Sign in to your workspace first');
+    expect(html).toContain('GATES CLOSED');
   });
 
   it('does not show SIGNED IN pill when no session', () => {
@@ -222,9 +222,10 @@ describe('WorkspacePanel — null network (config not yet loaded)', () => {
     expect(() => render({ session: null, network: null })).not.toThrow();
   });
 
-  it('null network with session still shows NOT DEPLOYED', () => {
+  it('null network with session does not invent a network', () => {
     const html = render({ session: testnetSession, network: null });
-    expect(html).toContain('NOT DEPLOYED');
+    expect(html).toContain('NETWORK UNAVAILABLE');
+    expect(html).not.toContain('Arc Testnet');
   });
 });
 
@@ -258,7 +259,7 @@ describe('WorkspacePanel — no fabricated deployment state', () => {
   it('contract readiness note mentions separate owner panel for Arc Mainnet', () => {
     const html = render({ session: testnetSession, network: testnetNetwork });
     expect(html).toContain('Arc Mainnet');
-    expect(html).toContain('Owner panel');
+    expect(html).toContain('must not be deployed again');
   });
 
   it('financial gates closed note mentions "deployed factory"', () => {
@@ -266,3 +267,5 @@ describe('WorkspacePanel — no fabricated deployment state', () => {
     expect(html).toContain('deployed factory');
   });
 });
+
+ describe('mainnet deployment record',()=>{it('shows the exact verified factory while financial gates remain closed',()=>{const html=render({session:mainnetSession,network:mainnetNetwork});expect(html).toContain('DEPLOYMENT RECORDED');expect(html).toContain('0x801c366eb4e07162fca1f260d78338a3433d81e2');expect(html).toContain('GATES CLOSED');expect(html).not.toContain('NOT DEPLOYED');});});

@@ -3,6 +3,7 @@ import {DurableObject} from 'cloudflare:workers';
 import {createApiHost} from './api-host';
 import {cloudConfig} from './config';
 import {apiShard,forwardApiRequest} from './routing';
+import {releaseAssetResponse} from './release-headers';
 type Namespace={idFromName(name:string):unknown;get(id:unknown):{fetch(request:Request):Promise<Response>}};
 type Env=Record<string,string>&{API_HOST:Namespace;ASSETS:{fetch(request:Request):Promise<Response>};INDEXER:{idFromName(name:string):unknown;get(id:unknown):{arm():Promise<void>}}};
 export class NoticeVaultApi extends DurableObject<Env>{
@@ -20,5 +21,5 @@ export default {async scheduled(_event:unknown,env:Env){if(env.INDEXER_ENABLED==
   const forwarded=forwardApiRequest(request,env.PUBLIC_ORIGIN);
   return env.API_HOST.get(env.API_HOST.idFromName('api-v1:'+apiShard(request))).fetch(forwarded);
  }
- return env.ASSETS.fetch(request);
+ return releaseAssetResponse(await env.ASSETS.fetch(request));
 }};

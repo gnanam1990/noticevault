@@ -10,7 +10,7 @@ export type WorkerStatus={state:'running'|'idle'|'stopped'|'limit';steps:number;
 const block=(v:unknown)=>{if(!v||typeof v!=='object')throw Error('WORKER_FINALITY_UNAVAILABLE');const r=v as Record<string,unknown>;if(typeof r.number!=='string'||!/^0x(?:0|[1-9a-f][0-9a-f]*)$/.test(r.number)||typeof r.hash!=='string'||!/^0x[0-9a-f]{64}$/i.test(r.hash))throw Error('WORKER_HEADER_INVALID');return {number:BigInt(r.number),hash:r.hash.toLowerCase()};};
 const pause=(ms:number,signal:AbortSignal)=>new Promise<void>(resolve=>{if(signal.aborted){resolve();return;}const done=()=>{clearTimeout(timer);signal.removeEventListener('abort',done);resolve();},timer=setTimeout(done,ms);signal.addEventListener('abort',done,{once:true});});
 /** Reads only; each ingestion transaction commits cursor, projections and inbox notifications together. */
-export async function runWorker(pool:SqlPool,cfg:WorkerConfig,primary:Rpc,verification:Rpc,signal:AbortSignal,onStatus:(s:WorkerStatus)=>void=()=>{},afterStep?:(signal:AbortSignal)=>Promise<void>){
+export async function runWorker(pool:SqlPool,cfg:WorkerConfig,primary:Rpc,verification:Rpc,signal:AbortSignal,onStatus:(s:WorkerStatus)=>void=()=>{},afterStep?:(signal:AbortSignal)=>Promise<void>,options:{stopWhenIdle?:boolean}={}){
  const binding=createHash('sha256').update(JSON.stringify(normalizeConfig({...cfg.stream,deploymentPolicy:deploymentPolicyFromRpc(cfg.rpcPolicy)}))).digest('hex');const rpc=pairedRpc(primary,verification);let steps=0,inserted=0,head=cfg.stream.anchorNumber;
  while(!signal.aborted&&steps<cfg.maxSteps){
   const c=await pool.connect();let expectedHash=cfg.stream.anchorHash;
@@ -27,7 +27,10 @@ export async function runWorker(pool:SqlPool,cfg:WorkerConfig,primary:Rpc,verifi
    const result=finalized.number===BigInt(head)?{status:'idle',inserted:0}:await runConfiguredStep(pool,cfg.schema,cfg.stream,cfg.rpcPolicy,stepRpc,signal);
    steps++;inserted+=result.inserted;if(result.status==='applied')head=(BigInt(head)+1n).toString();onStatus({state:result.status==='idle'?'idle':'running',steps,inserted,head});
    if(!signal.aborted&&afterStep)await afterStep(signal);
-   if(result.status==='idle')await pause(cfg.pollIntervalMs,signal);
+   if(result.status==='idle'){
+    if(options.stopWhenIdle)return {state:'idle',steps,inserted,head} as WorkerStatus;
+    await pause(cfg.pollIntervalMs,signal);
+   }
   }catch(error){if(signal.aborted)break;throw error;}
  }
  const result:WorkerStatus={state:signal.aborted?'stopped':'limit',steps,inserted,head};onStatus(result);return result;

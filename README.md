@@ -1,6 +1,6 @@
 # NoticeVault
 
-A notice-period payment escrow system with a synthetic demo, backend workspace, and owner deployment preparation panel.
+A notice-period payment escrow system with a read-only mainnet overview, an explicit synthetic demo, and an authenticated workspace.
 
 Built with [Arc Studio](https://studio.arc.io)
 
@@ -8,11 +8,18 @@ Built with [Arc Studio](https://studio.arc.io)
 
 ## What this app does
 
-NoticeVault manages fixed-period service agreements with cryptographic payment escrow. It has three distinct panels:
+NoticeVault manages fixed-period service agreements with cryptographic payment escrow. It has four views:
 
-- **Synthetic demo** — exercises the full domain model (accrual, cancellation, renewal, claims) with no real funds, no wallet, and no blockchain calls. All financial values are computed by `@noticevault/domain`.
-- **Workspace (testnet)** — backend sign-in on Arc Testnet (chain 5042002). Requires an injected wallet. Supports draft authoring and review. Contract deployment and financial execution gates are closed until a factory is deployed.
-- **Owner deployment** — deployment bundle preparation for Arc Mainnet (chain 5042). Separate configuration from the testnet workspace; testnet authentication does not imply mainnet readiness.
+- **Mainnet overview** — the default read-only view of the deployed Arc Mainnet factory. Public chain reads do not require a wallet and do not authorize transactions.
+- **Synthetic demo** — an explicitly labelled simulation of accrual, cancellation, renewal and claims, with no real funds, wallet or blockchain calls. Financial values are computed by `@noticevault/domain`.
+- **Workspace** — wallet account access, separate backend sign-in, draft authoring and review. Its network comes from validated backend configuration; connecting an account does not enable financial execution.
+- **Advanced** — read-only deployment evidence and readiness requirements. This view does not submit deployments or enable transactions.
+
+## Deployment versus source
+
+Factory `0x801c366eb4e07162fca1f260d78338a3433d81e2` was deployed on Arc Mainnet (chain 5042) on 29 October 2026. The [deployment record](implementation-records/mainnet-factory-20261029.json) and [SDK deployment pins](packages/sdk/src/deployments.ts) describe the original deployed artifact.
+
+Repository contract source includes post-deployment revisions. Compiling the current source does **not** establish that its bytecode matches the existing factory. No replacement contract has been deployed; using revised contracts requires separate review and an owner-authorized deployment. Financial execution and indexing remain disabled.
 
 ## Tech stack
 
@@ -21,7 +28,7 @@ NoticeVault manages fixed-period service agreements with cryptographic payment e
 - Wallet: injected providers (MetaMask etc.), EIP-6963 discovery, no WalletConnect
 - Authentication: SIWE-style message signing, HttpOnly session cookie
 - Contracts: Solidity 0.8.28, Foundry (`contracts/`)
-- Chains: Arc Testnet (5042002) for workspace auth; Arc Mainnet (5042) for owner deployment preparation
+- Chains: Arc Mainnet (5042) for public factory reads; the workspace network comes from validated backend configuration.
 
 ## Development
 

@@ -1,4 +1,5 @@
 import {describe,it,expect} from 'vitest';
+import {join,resolve,relative,sep} from 'node:path';
 import {artifactFixture} from './artifact-verifier.fixture';
 import {agreementFixture} from './fixture';
 import {loadHostedOperatorInputs} from '../../cloudflare/src/operator-inputs';
@@ -25,7 +26,8 @@ describe('Cloudflare reviewed operator startup (synthetic bytes/providers only)'
  it('actual shared verifier and paired runtime compose host routes; Node loader remains equivalent',async()=>{
   const x=fixture(),deps={reader:x.reader};
   const hosted=await loadHostedOperatorInputs(x.bundle,x.f.anchor.reviewSha256,deps);expect(hosted?.config).toEqual(x.f.config);expect(x.calls()).toBe(2);
-  const node=await loadOperatorApprovalInputs({NOTICEVAULT_OPERATOR_APPROVAL_CONFIG:'/synthetic/config.json',NOTICEVAULT_OPERATOR_REVIEW_SHA256:x.f.anchor.reviewSha256},{...deps,read:async path=>path==='/synthetic/config.json'?Buffer.from(x.bundle.config):Buffer.from(x.bundle.files[path.slice('/synthetic/'.length)]!,'base64')});expect(node?.config).toEqual(hosted?.config);
+  const syntheticRoot=resolve('synthetic-cloudflare-fixture'),configPath=join(syntheticRoot,'config.json');
+  const node=await loadOperatorApprovalInputs({NOTICEVAULT_OPERATOR_APPROVAL_CONFIG:configPath,NOTICEVAULT_OPERATOR_REVIEW_SHA256:x.f.anchor.reviewSha256},{...deps,read:async path=>path===configPath?Buffer.from(x.bundle.config):Buffer.from(x.bundle.files[relative(syntheticRoot,path).split(sep).join('/')]!,'base64')});expect(node?.config).toEqual(hosted?.config);
   const pool={query:()=>{throw Error('UNEXPECTED_DATABASE_USE');}} as unknown as Parameters<typeof buildHostedApi>[1];
   const app=await buildHostedApi(cfg,pool,x.bundle,x.f.anchor.reviewSha256,deps);try{await app.ready();const r=await app.inject({url:'/readiness'});expect(r.statusCode).toBe(503);expect(r.json().state).toBe('READ_ONLY_COMPOSED');expect(r.json().executionEnabled).toBe(false);const n=await app.inject({url:'/auth/network'});expect(n.json().chainId).toBe('5042002');const auth=await app.inject({method:'POST',url:'/auth/logout',payload:{}});expect(auth.statusCode).toBe(403);}finally{await app.close();}
  });

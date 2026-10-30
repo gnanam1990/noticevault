@@ -7,11 +7,12 @@ import {connectedWorkspaceWallet} from './workspace-wallet';
 import type {WalletStatus} from './owner-wallet-session';
 import type {InjectedProvider} from './injected-wallet.js';
 import type {DraftReviewClient,Session} from './draft-review.js';
-type SignInProps={api:DraftReviewClient;onSignedIn:(session:Session)=>void;onInvalidated:()=>void;onBusy:(busy:boolean)=>void};
+type SignInProps={onNetwork?:(network:AuthNetwork|null)=>void;api:DraftReviewClient;onSignedIn:(session:Session)=>void;onInvalidated:()=>void;onBusy:(busy:boolean)=>void};
 export function SignIn(props:SignInProps){
  const [network,setNetwork]=useState<AuthNetwork|null>(null),[error,setError]=useState(''),[attempt,setAttempt]=useState(0);
+ useEffect(()=>{props.onNetwork?.(network);},[network,props.onNetwork]);
  useEffect(()=>{const controller=new AbortController();void loadAuthNetwork(controller.signal).then(setNetwork).catch(e=>{if(!controller.signal.aborted)setError(e instanceof Error?e.message:'Network unavailable');});return()=>controller.abort();},[attempt]);
- if(!network)return <section aria-label="Wallet sign-in" className="my-6 rounded-xl border border-slate-200 bg-white p-5"><h2 className="text-xl font-bold">Sign in to your workspace</h2><p role="status" className="my-3">{error||'Loading the configured Arc network…'}</p>{error&&<button type="button" className="min-h-11 rounded-lg border border-slate-400 px-4 py-3" onClick={()=>{setError('');setAttempt(x=>x+1);}}>Retry network check</button>}</section>;
+ if(!network)return <><WorkspaceWallet network={null} disabled={false} onProvider={()=>{}} onStatus={()=>{}}/><section aria-label="Wallet sign-in" className="my-6 rounded-xl border border-slate-200 bg-white p-5"><h2 className="text-xl font-bold">Sign in to your workspace</h2><p role="status" className="my-3">{error||'Loading the configured Arc network…'}</p>{error&&<button type="button" className="min-h-11 rounded-lg border border-slate-400 px-4 py-3" onClick={()=>{setError('');setAttempt(x=>x+1);}}>Retry network check</button>}<p className="mt-3 text-sm text-slate-600">When the backend becomes available, select your wallet and check its status again before sign-in. Never bypass a wallet security warning.</p></section></>;
  return <NetworkSignIn {...props} network={network}/>;
 }
 function NetworkSignIn({api,onSignedIn,onInvalidated,onBusy,network}:SignInProps&{network:AuthNetwork}){

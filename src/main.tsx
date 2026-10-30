@@ -10,8 +10,7 @@
  *  https://studio.arc.io
  */
 
-import './tracing'
-import './console-capture'
+// Preview instrumentation is deliberately excluded from the application entrypoint.
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'

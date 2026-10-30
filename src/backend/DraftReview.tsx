@@ -22,10 +22,9 @@ import {TransactionReview} from './TransactionReview.js';
 import NotificationInbox from './NotificationInbox.js';
 import IndexedAgreements from './IndexedAgreements.js';
 import {Association} from './Association.js';
-import {Authoring} from './Authoring.js';
+import {Authoring} from './AgreementAuthoring.js';
 import {Discovery} from './Discovery.js';
 import {WorkspacePanel} from './WorkspacePanel.js';
-import {loadAuthNetwork} from './auth-network.js';
 import type {AuthNetwork} from './auth-network.js';
 import {classifyRequestError} from './request-error.js';
 import React, {useEffect,useRef,useState} from 'react';
@@ -60,8 +59,7 @@ export function DraftReview(){
   // Runtime network config — loaded from API, never hardcoded. Used for display labels only.
   const [network,setNetwork]=useState<AuthNetwork|null>(null);
   const active=useRef<AbortController|null>(null);
-  // Load the configured network on mount for accurate display labels.
-  useEffect(()=>{const ctrl=new AbortController();void loadAuthNetwork(ctrl.signal).then(setNetwork).catch(()=>{/* display falls back to WorkspacePanel default */});return()=>ctrl.abort();},[]);
+  // SignIn supplies the same validated network used for authentication, including retries.
   useEffect(()=>()=>{active.current?.abort();},[]);
 
   // Session expiry timer — clears workspace state when the session expires.
@@ -120,7 +118,7 @@ export function DraftReview(){
       <p className="mt-1 text-sm text-slate-500">
         {network
           ? `The backend is configured for ${network.label} (chain ${network.chainId}).`
-          : 'Loading configured network…'}
+          : 'Workspace network not verified. Check the network status below.'}
         {' '}Mainnet deployment evidence is in Advanced.
         These are distinct configurations; authentication here does not imply mainnet readiness.
       </p>
@@ -130,6 +128,7 @@ export function DraftReview(){
       <WorkspacePanel
         api={api}
         network={network}
+        onNetwork={setNetwork}
         session={session}
         authBusy={authBusy}
         onSignedIn={me=>{setSession(me);setAuthorIdentity(me);setError('');}}

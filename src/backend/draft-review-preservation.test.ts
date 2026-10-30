@@ -43,7 +43,7 @@ describe('DraftReview preserves all original component entry points (import-leve
   const requiredImports = [
     ['WorkspacePanel',         './WorkspacePanel'],
     ['Discovery',              './Discovery'],
-    ['Authoring',              './Authoring'],
+    ['Authoring',              './AgreementAuthoring'],
     ['WorkspaceMembers',       './WorkspaceMembers'],
     ['PrivateRevisions',       './PrivateRevisions'],
     ['OperatorConsent',        './OperatorConsent'],
@@ -93,8 +93,9 @@ describe('DraftReview wires network prop into WorkspacePanel', () => {
     expect(draftReviewSource).toContain('network={network}');
   });
 
-  it('DraftReview loads AuthNetwork from loadAuthNetwork', () => {
-    expect(draftReviewSource).toContain('loadAuthNetwork');
+  it('DraftReview receives the authentication network through the same SignIn flow', () => {
+    expect(draftReviewSource).toContain('onNetwork={setNetwork}');
+    expect(draftReviewSource).not.toContain('loadAuthNetwork');
   });
 
   it('DraftReview no longer hardcodes "Arc Testnet chain 5042002" in static text', () => {

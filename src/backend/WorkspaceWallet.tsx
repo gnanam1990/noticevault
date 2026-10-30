@@ -2,7 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import {discoverOwnerWallets,OwnerWalletSession,walletFailure,type WalletChoice,type WalletStatus} from './owner-wallet-session';
 import type {InjectedProvider} from './injected-wallet';
 import type {AuthNetwork} from './auth-network';
-type Props={network:AuthNetwork;disabled:boolean;onProvider:(provider:InjectedProvider|undefined)=>void;onStatus:(status:WalletStatus|null)=>void};
+type Props={network:AuthNetwork|null;disabled:boolean;onProvider:(provider:InjectedProvider|undefined)=>void;onStatus:(status:WalletStatus|null)=>void};
 const button='min-h-11 rounded-lg border border-slate-400 px-4 py-3 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-blue-600';
 export function WorkspaceWallet({network,disabled,onProvider,onStatus}:Props){
  const [choices,setChoices]=useState<readonly WalletChoice[]>([]),[selected,setSelected]=useState(''),[status,setStatus]=useState<WalletStatus|null>(null),[message,setMessage]=useState('Find a wallet, select it, then check its status or connect.'),[busy,setBusy]=useState(false);
@@ -22,16 +22,16 @@ export function WorkspaceWallet({network,disabled,onProvider,onStatus}:Props){
   }catch(e){if(mounted.current&&active===handles.current.session)setMessage(walletFailure(e));}
   finally{running.current=false;if(mounted.current)setBusy(false);}
  }
- const mismatch=status&&status.chainId!==BigInt(network.chainId);
+ const mismatch=status&&network&&status.chainId!==BigInt(network.chainId);
  return <section aria-label="Wallet connection" className="my-6 rounded-xl border border-slate-200 bg-white p-5">
   <h2 className="text-xl font-bold">1. Connect your wallet</h2>
-  <p className="my-3">Workspace network: <strong>{network.label} (chain {network.chainId})</strong>. {network.chainId===5042002?'This is the testnet workspace, not mainnet acceptance.':'Mainnet authentication does not prove contracts are deployed or financial execution is enabled.'}</p>
+  <p className="my-3">{network?<>Workspace network: <strong>{network.label} (chain {network.chainId})</strong>. {network.chainId===5042002?'This is the testnet workspace, not mainnet acceptance.':'Mainnet authentication does not prove contracts are deployed or financial execution is enabled.'}</>:<>Workspace network unavailable. You can connect for account access, but sign-in stays unavailable until the backend network is verified.</>}</p>
   <p className="my-3">Connection shares an account only. Sign-in is a separate message approval below.</p>
   <button type="button" className={button} disabled={busy||disabled} onClick={()=>{handles.current.discovery?.refresh();setMessage('Choose a discovered wallet. If none appears, open this app in a wallet-enabled browser.');}}>Find available wallets</button>
   <label className="my-3 block">Wallet<select aria-label="Wallet" value={selected} disabled={busy||disabled} onChange={e=>select(e.target.value)} className="mt-1 min-h-11 w-full rounded border border-slate-400 p-2"><option value="">Select a wallet</option>{choices.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}</select></label>
   {!choices.length&&<p className="my-3">No wallet discovered yet. Desktop: use your installed extension. Mobile: use your wallet's browser; this app does not currently provide a WalletConnect QR/deep-link connector.</p>}
   <div className="flex flex-wrap gap-3"><button type="button" className={button} disabled={!selected||busy||disabled} onClick={()=>void inspect(true)}>Connect wallet (account access only)</button><button type="button" className={button} disabled={!selected||busy||disabled} onClick={()=>void inspect(false)}>Check wallet status (read only)</button></div>
   <p role="status" aria-live="polite" className="mt-3 break-words">{message}</p>
-  {status&&<div className="mt-3 break-words"><p>Current chain: {String(status.chainId)}. Expected chain: {network.chainId}.</p><p>Account: {status.accounts[0]??'No account shared'}</p>{mismatch&&<p role="alert">Wrong network for this workspace. Select {network.label} (chain {network.chainId}) for this exact page in your wallet, then check status again. No automatic network switch is performed.</p>}</div>}
+  {status&&<div className="mt-3 break-words"><p>Current chain: {String(status.chainId)}. Expected workspace chain: {network?.chainId??'Unavailable'}.</p><p>Account: {status.accounts[0]??'No account shared'}</p>{mismatch&&network&&<p role="alert">Wrong network for this workspace. Select {network.label} (chain {network.chainId}) for this exact page in your wallet, then check status again. No automatic network switch is performed.</p>}</div>}
  </section>;
 }

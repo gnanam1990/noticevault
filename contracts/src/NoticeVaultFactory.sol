@@ -363,16 +363,14 @@ contract NoticeVaultFactory {
         bytes32 digest,
         bytes calldata sig
     ) internal view {
-        // Try EOA (ECDSA) first
-        if (sig.length == 65) {
-            address recovered = digest.recover(sig);
-            if (recovered == provider_) return;
-        }
-        // Try ERC-1271 (smart contract wallet) — only if provider has deployed code
+        // Contract wallets own their validation policy, regardless of payload length.
         if (provider_.code.length > 0) {
             try IERC1271(provider_).isValidSignature(digest, sig) returns (bytes4 magic) {
                 if (magic == ERC1271_MAGIC) return;
             } catch {}
+        } else {
+            (address recovered, ECDSA.RecoverError error,) = ECDSA.tryRecover(digest, sig);
+            if (error == ECDSA.RecoverError.NoError && recovered == provider_) return;
         }
         revert Err.InvalidSignature();
     }
