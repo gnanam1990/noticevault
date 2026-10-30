@@ -1,0 +1,48 @@
+{
+  "name": "noticevault",
+  "main": "src/entry.ts",
+  "compatibility_date": "2026-10-25",
+  "workers_dev": true,
+  "send_metrics": false,
+  "assets": {
+    "directory": "../../dist-readonly",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/api/*",
+      "/v1/*"
+    ]
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "API_HOST",
+        "class_name": "NoticeVaultApi"
+      },
+      {
+        "name": "INDEXER",
+        "class_name": "NoticeVaultIndexer"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "noticevault-api-v1",
+      "new_sqlite_classes": [
+        "NoticeVaultApi",
+        "NoticeVaultIndexer"
+      ]
+    }
+  ],
+  "vars": {
+    "PUBLIC_ORIGIN": "https://noticevault.gnanasekaran-sekareee.workers.dev",
+    "CONFIG_IDENTITY": "ARC_MAINNET",
+    "PGSCHEMA": "noticevault",
+    "INDEXER_ENABLED": "false"
+  },
+  "account_id": "38a40c1dd3e569fc69fa83a4721cc463",
+  "preview_urls": false,
+  "triggers": {
+    "crons": []
+  }
+}

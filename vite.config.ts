@@ -3,9 +3,10 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  envDir: mode === 'readonly-release' ? false : undefined,
   plugins: [react(), nodePolyfills()],
-  build: { rollupOptions: { input: { app: path.resolve(__dirname, 'index.html'), ownerDeployment: path.resolve(__dirname, 'owner-deployment.html') } } },
+  build: { outDir: mode === 'readonly-release' ? 'dist-readonly' : 'dist', rollupOptions: { input: mode === 'readonly-release' ? { app: path.resolve(__dirname, 'index.html') } : { app: path.resolve(__dirname, 'index.html'), ownerDeployment: path.resolve(__dirname, 'owner-deployment.html') } } },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -41,4 +42,4 @@ export default defineConfig({
     allowedHosts: true,
     cors: true,
   },
-})
+}))
