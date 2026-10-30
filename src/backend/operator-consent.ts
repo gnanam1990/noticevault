@@ -1,3 +1,4 @@
+import {onWalletSelectionChange} from './wallet-selection';
 import {parseObject,stringValue} from './response-values';
 import {keccak256,type Hex} from 'viem';
 import {buildTypedData,computeTermsDigest,parseArcManifest,parseTerms,type SerializedTerms} from '../../packages/sdk/src/index';
@@ -21,7 +22,7 @@ export class OperatorConsentController{
  private state:State={status:'idle',message:'Connect the provider wallet to review exact typed consent.'};private listeners=new Set<()=>void>();private epoch=0;private expiry=0;private unsubscribe:(()=>void)|undefined;readonly storageKey:string;
  constructor(private ws:string,private draft:string,private pins:ApprovalPins,private provider:InjectedProvider,private storage:Store,private locks:Locks,private api=new OperatorConsentClient()){
   this.storageKey=['noticevault:provider-consent:v1',pins.chainId,ws,draft].join(':');try{if(storage.getItem(this.storageKey))this.state={status:'locked',message:'Saved signature attempt; reconcile without signing again.'};}catch{this.state={status:'locked',message:'Journal unavailable; signing blocked.'};}
-  this.unsubscribe=injectedWallet(provider).onChange?.(()=>this.invalidate())??undefined;
+  const walletDetach=injectedWallet(provider).onChange?.(()=>this.invalidate());const selectionDetach=onWalletSelectionChange(()=>this.invalidate());this.unsubscribe=()=>{walletDetach?.();selectionDetach();};
  }
  snapshot=()=>this.state;subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>this.listeners.delete(fn);};private set(s:State){this.state=s;for(const f of this.listeners)f();}
  invalidate(){this.epoch++;this.set({status:'locked',message:'Wallet or draft context changed. Reconcile saved consent; do not sign again.'});}dispose(){this.epoch++;this.unsubscribe?.();this.listeners.clear();}

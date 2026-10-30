@@ -1,3 +1,4 @@
+import { isUuid } from "../request-identifiers.js";
 import {arcDeployment} from '@noticevault/sdk';
 import type {} from '@fastify/cookie';
 /**
@@ -71,7 +72,7 @@ export async function requireSession(
   schema: string,
 ): Promise<SessionData> {
   const sessionId = (req.cookies ?? {})[SESSION_COOKIE_NAME];
-  if (!sessionId) throw unauthorized("No session cookie");
+  if (!isUuid(sessionId)) throw unauthorized("Invalid or missing session cookie");
   const row = await findValidSession(pool, schema, sessionId);
   if (!row) throw unauthorized("Session expired or revoked");
   return {
@@ -273,7 +274,7 @@ export async function authRoutes(
   app.post("/auth/logout", async (req, reply) => {
     requireCsrfHeaders(req, cfg.allowedOrigins);
     const sessionId = (req.cookies ?? {})[SESSION_COOKIE_NAME];
-    if (sessionId) {
+    if (isUuid(sessionId)) {
       await revokeSession(pool, schema, sessionId);
     }
     const cookieStr = clearSessionCookie(cfg.cookieDomain);

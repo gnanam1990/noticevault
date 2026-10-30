@@ -16,7 +16,7 @@ import { SdkChainError } from "./types.js";
  * LOCAL_FIXTURE — for deterministic tests only.
  * chainId=31337 (Anvil default). factoryAddress=null (caller must override for test).
  */
-export const LOCAL_FIXTURE_DEPLOYMENT: NoticeVaultDeployment = {
+export const LOCAL_FIXTURE_DEPLOYMENT: NoticeVaultDeployment = Object.freeze({
   configIdentity:           "LOCAL_FIXTURE",
   chainId:                  31337n,
   factoryAddress:           null,
@@ -25,14 +25,14 @@ export const LOCAL_FIXTURE_DEPLOYMENT: NoticeVaultDeployment = {
   expectedTokenCodeHash:    null,
   isLive:                   false,
   label:                    "[TEST DATA] Local Fixture — not a live deployment",
-};
+});
 
 /**
  * ARC_TESTNET — readiness descriptor.
  * factoryAddress=null until M10 verified deployment.
  * Do NOT set isLive=true here; testnet is never mainnet.
  */
-export const ARC_TESTNET_DEPLOYMENT: NoticeVaultDeployment = {
+export const ARC_TESTNET_DEPLOYMENT: NoticeVaultDeployment = Object.freeze({
   configIdentity:           "ARC_TESTNET",
   chainId:                  5042002n,
   factoryAddress:           null, // set after M10 verified deployment
@@ -41,7 +41,7 @@ export const ARC_TESTNET_DEPLOYMENT: NoticeVaultDeployment = {
   expectedTokenCodeHash:    null,
   isLive:                   false,
   label:                    "Arc Testnet — readiness only, no verified deployment",
-};
+});
 
 /**
  * Validate that a deployment's chainId matches the caller's connected chainId.
@@ -80,4 +80,13 @@ export function arcDeployment(identity: string): NoticeVaultDeployment {
  if(identity==='ARC_TESTNET')return ARC_TESTNET_DEPLOYMENT;
  if(identity==='ARC_MAINNET')return ARC_MAINNET_DEPLOYMENT;
  throw new Error('Unsupported Arc network');
+}
+
+/** Registry identity validation, never evidence of current on-chain state. */
+export function assertRegisteredArcDeploymentPins(identity:string,supplied:Pick<NoticeVaultDeployment,'chainId'|'factoryAddress'|'allowlistedToken'|'expectedFactoryCodeHash'|'expectedTokenCodeHash'>):void{
+ const registered=arcDeployment(identity);if(supplied.chainId!==registered.chainId)throw Error('ARC_DEPLOYMENT_PIN_MISMATCH');
+ for(const key of ['factoryAddress','allowlistedToken','expectedFactoryCodeHash','expectedTokenCodeHash'] as const){
+  const expected=registered[key],actual=supplied[key];if(typeof expected!=='string')throw Error('ARC_DEPLOYMENT_NOT_REGISTERED');
+  if(typeof actual!=='string'||actual.toLowerCase()!==expected.toLowerCase())throw Error('ARC_DEPLOYMENT_PIN_MISMATCH');
+ }
 }

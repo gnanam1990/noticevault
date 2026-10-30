@@ -22,7 +22,7 @@ async function setup(){
   return new Response(JSON.stringify(record),{headers:{'content-type':'application/json'}});
  },'OPERATOR_CONFIGURED');
  const provider={request:async({method,params}:{method:string;params?:unknown[]})=>{if(method==='eth_requestAccounts'||method==='eth_accounts')return [account];if(method==='eth_chainId')return chain;if(method==='eth_sendTransaction'){sends++;expect(record!.state).toBe('unknown');expect([...memory.values()].some(v=>JSON.parse(v).stage==='unknown')).toBe(true);onSend();if(interrupted)throw Error('Transport interrupted');return f.send(params![0] as Record<string,unknown>);}throw Error('Unexpected wallet request');},on:(_e:string,fn:()=>void)=>events.add(fn),removeListener:(_e:string,fn:()=>void)=>events.delete(fn)};
- const make=()=>new OperatorApprovalController(ws,draft,{chainId:'5042002',token:f.f.config.deployment.allowlistedToken!,factory:f.f.config.deployment.factoryAddress!,policyHash:f.composed.runtime.policyHash},provider,storage,locks,api);
+ const make=()=>new OperatorApprovalController(ws,draft,{chainId:'5042002',token:f.f.config.deployment.allowlistedToken!,factory:f.f.config.deployment.factoryAddress!,policyHash:f.composed.runtime.policyHash},provider,storage,locks,api,undefined,undefined,{terms:f.row.terms_json,version:f.row.version,docHash:f.row.doc_hash});
  return {f,make,storage,memory,controller:make(),sends:()=>sends,record:()=>record!,drift:()=>{account='0x'+'9'.repeat(40);},event:()=>events.forEach(fn=>fn()),interrupt:()=>{interrupted=true;},loseClaim:()=>{claimLost=true;},onClaim:(fn:()=>void)=>{onClaim=fn;},onSend:(fn:()=>void)=>{onSend=fn;},wrongChain:()=>{chain='0x1';}};
 }
 describe('synthetic connected operator approval',()=>{

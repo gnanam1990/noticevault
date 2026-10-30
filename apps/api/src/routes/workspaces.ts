@@ -1,3 +1,4 @@
+import { isUuid } from "../request-identifiers.js";
 import { mutateOnce } from '../mutations.js';
 /**
  * @noticevault/api — workspace routes
@@ -86,6 +87,7 @@ export async function workspaceRoutes(
   app.get<{ Params: { id: string } }>("/workspaces/:id", async (req, reply) => {
     const session = await requireSession(req, pool, schema);
     const { id } = req.params;
+    if (!isUuid(id)) throw badRequest("Invalid workspace ID");
 
     const ws = await getWorkspaceById(pool, schema, id);
     if (!ws) throw notFound("workspace", id);
@@ -101,6 +103,7 @@ export async function workspaceRoutes(
   app.get<{ Params: { id: string } }>("/workspaces/:id/members", async (req, reply) => {
     const session = await requireSession(req, pool, schema);
     const { id } = req.params;
+    if (!isUuid(id)) throw badRequest("Invalid workspace ID");
 
     const ws = await getWorkspaceById(pool, schema, id);
     if (!ws) throw notFound("workspace", id);

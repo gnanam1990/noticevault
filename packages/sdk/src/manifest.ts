@@ -1,5 +1,5 @@
 import type {Hex} from 'viem';
-import {arcDeployment} from './deployments.js';
+import {arcDeployment,assertRegisteredArcDeploymentPins} from './deployments.js';
 import type {NoticeVaultDeployment} from './types.js';
 const keys=['configIdentity','chainId','factoryAddress','allowlistedToken','expectedFactoryCodeHash','expectedTokenCodeHash','isLive','label'];
 function invalid():never{throw new Error('Invalid Arc deployment manifest');}
@@ -21,6 +21,7 @@ export function parseArcManifest(text:string, expectedIdentity?:string):NoticeVa
  const parsed:NoticeVaultDeployment={configIdentity:network.configIdentity,chainId:network.chainId,factoryAddress:v.factoryAddress as string,allowlistedToken:v.allowlistedToken as string,expectedFactoryCodeHash:v.expectedFactoryCodeHash as Hex,expectedTokenCodeHash:v.expectedTokenCodeHash as Hex,isLive:network.isLive,label:v.label};
  for(const address of [parsed.factoryAddress,parsed.allowlistedToken]) if(typeof address!=='string'||!/^0x[0-9a-fA-F]{40}$/.test(address)||/^0x0{40}$/.test(address))return invalid();
  for(const hash of [parsed.expectedFactoryCodeHash,parsed.expectedTokenCodeHash])if(typeof hash!=='string'||!/^0x[0-9a-fA-F]{64}$/.test(hash)||/^0x0{64}$/.test(hash))return invalid();
+ if(parsed.configIdentity==='ARC_MAINNET'){try{assertRegisteredArcDeploymentPins('ARC_MAINNET',parsed);}catch{return invalid();}}
  return Object.freeze(parsed);
 }
 

@@ -62,7 +62,7 @@ export {
 // ── Deployments ───────────────────────────────────────────────────────────────
 export {
   LOCAL_FIXTURE_DEPLOYMENT,
-  ARC_TESTNET_DEPLOYMENT, ARC_MAINNET_DEPLOYMENT, arcDeployment,
+  ARC_TESTNET_DEPLOYMENT, ARC_MAINNET_DEPLOYMENT, arcDeployment, assertRegisteredArcDeploymentPins,
   requireFactoryAddress,
 } from "./deployments.js";
 
@@ -113,3 +113,5 @@ export {draftCreationBinding,prepareBoundDraftCreation} from './draft-consent.js
 export type {DraftConsentSnapshot,DraftPreparationDependencies} from './draft-consent.js';
 
 export {parseArcTestnetManifest,parseArcManifest} from './manifest.js';
+
+export {canonicalAttemptResource,isStructuredAttemptResource} from './attempt-identity.js';

@@ -1,3 +1,4 @@
+import { isUuid } from "../request-identifiers.js";
 import { mutateOnce } from '../mutations.js';
 /**
  * @noticevault/api — terms draft routes
@@ -222,6 +223,7 @@ export async function draftRoutes(
     wsId:          string,
     memberAddress: string, chainId: bigint, edit=false,
   ): Promise<void> {
+    if (!isUuid(wsId)) throw badRequest("Invalid workspace ID");
     const ws = await getWorkspaceById(pool, schema, wsId);
     if (!ws) throw notFound("workspace", wsId);
     const membership = await getMembership(pool, schema, wsId, memberAddress, chainId);
@@ -291,6 +293,7 @@ const draft = await createDraft(
     "/workspaces/:wsId/drafts/:id",
     async (req, reply) => {
       const session = await requireSession(req, pool, schema);
+      if (!isUuid(req.params.id)) throw badRequest("Invalid draft ID");
       await authorizeWorkspaceMember(req.params.wsId, session.memberAddress, session.chainId);
       const draft = await getDraftById(pool, schema, req.params.id, req.params.wsId);
       if (!draft) throw notFound("draft", req.params.id);
@@ -303,6 +306,7 @@ const draft = await createDraft(
     "/workspaces/:wsId/drafts/:id",
     async (req, reply) => {
       const session = await requireSession(req, pool, schema);
+      if (!isUuid(req.params.id)) throw badRequest("Invalid draft ID");
       await authorizeWorkspaceMember(req.params.wsId, session.memberAddress, session.chainId,true);
       if((await pool.query('SELECT id FROM '+schema+'.draft_revisions WHERE id=$1 AND workspace_id=$2',[req.params.id,req.params.wsId])).rows.length)throw conflict('This revision is immutable. Create a new revision instead.');
 
@@ -359,6 +363,7 @@ const updated = await updateDraft(
     "/workspaces/:wsId/drafts/:id/accept-consent",
     async (req, reply) => {
       const session = await requireSession(req, pool, schema);
+      if (!isUuid(req.params.id)) throw badRequest("Invalid draft ID");
       await authorizeWorkspaceMember(req.params.wsId, session.memberAddress, session.chainId);
 
       const { termsDigest, signatureHex, pinnedBlock, chainId: chainIdNum } = req.body ?? {};

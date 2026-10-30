@@ -1,3 +1,4 @@
+import type {InjectedProvider} from './injected-wallet';
 /**
  * DraftReview — main workspace view.
  *
@@ -52,6 +53,7 @@ const fields:[string,string][]=[
 // ── DraftReview ───────────────────────────────────────────────────────────────
 
 export function DraftReview(){
+  const [provider,setProvider]=useState<InjectedProvider|undefined>();
   const [authorIdentity,setAuthorIdentity]=useState<Session|null>(null),[revision,setRevision]=useState(0);
   const [session,setSession]=useState<Session|null>(null),[workspace,setWorkspace]=useState<Workspace|null>(null),[draft,setDraft]=useState<SavedDraft|null>(null);
   const [workspaceId,setWorkspaceId]=useState(''),[draftId,setDraftId]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
@@ -129,6 +131,7 @@ export function DraftReview(){
         api={api}
         network={network}
         onNetwork={setNetwork}
+        onProvider={setProvider}
         session={session}
         authBusy={authBusy}
         onSignedIn={me=>{setSession(me);setAuthorIdentity(me);setError('');}}
@@ -157,6 +160,7 @@ export function DraftReview(){
       />}
 
       {session&&<IndexedAgreements
+        provider={provider}
         key={session.address.toLowerCase()+':'+session.chainId+':'+workspaceId}
         workspaceId={workspaceId}
         chainId={session.chainId}
@@ -188,6 +192,7 @@ export function DraftReview(){
       />}
 
       {session&&<PrivateRevisions
+        provider={provider}
         key={session.address+':'+session.chainId+':'+(draft?.id??'')}
         session={session}
         draft={draft}
@@ -280,6 +285,8 @@ export function DraftReview(){
 
       {draft&&workspace&&session&&session.address.toLowerCase()===String(draft.terms_json.client).toLowerCase()&&(
         <OperatorApproval
+          provider={provider}
+          approvalDraft={draft}
           key={session.address+session.chainId+session.expiresAt+draft.id+draft.version+revision}
           workspaceId={workspace.id}
           draftId={draft.id}
@@ -289,6 +296,7 @@ export function DraftReview(){
 
       {draft&&workspace&&session&&session.address.toLowerCase()===String(draft.terms_json.provider).toLowerCase()&&(
         <OperatorConsent
+          provider={provider}
           key={'consent:'+session.address+session.chainId+session.expiresAt+draft.id+draft.version+revision}
           workspaceId={workspace.id}
           draftId={draft.id}
@@ -298,6 +306,7 @@ export function DraftReview(){
 
       {draft&&workspace&&session&&session.address.toLowerCase()===String(draft.terms_json.client).toLowerCase()&&(
         <OperatorApproval
+          provider={provider}
           key={'create:'+session.address+session.chainId+session.expiresAt+draft.id+draft.version+revision}
           workspaceId={workspace.id}
           draftId={draft.id}

@@ -59,6 +59,8 @@ import { ecdsaVerifier, localFixtureVerifier } from "./auth/verify.js";
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 export interface ServerOptions {
+  /** Trusted construction context only. Standalone servers use the socket IP. */
+  rateLimitKey?: () => string;
   operatorApproval?: SyntheticAttemptAdapter;
   evidenceCollector?: EvidenceCollector;
   configuredRuntime?: ConfiguredRuntime;
@@ -112,11 +114,10 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   });
 
   await app.register(rateLimit, {
+    ...(opts.rateLimitKey ? { keyGenerator: () => opts.rateLimitKey!() } : {}),
     max:       1000,
     timeWindow: "1 minute",
-    errorResponseBuilder: () => ({
-      error: { code: "RATE_LIMITED", message: "Too many requests" },
-    }),
+    errorResponseBuilder: () => new ApiError(429, "RATE_LIMITED", "Too many requests"),
   });
 
   // ── Global CSRF hook — runs before ANY handler ─────────────────────────────
@@ -170,6 +171,13 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof ApiError) {
       void reply.status(err.statusCode).send(err.toBody());
+      return;
+    }
+    const status = err && typeof err === 'object' && 'statusCode' in err ? err.statusCode : undefined;
+    if (typeof status === "number" && Number.isInteger(status) && status >= 400 && status < 500) {
+      const code = status === 400 ? "BAD_REQUEST" : status === 413 ? "PAYLOAD_TOO_LARGE" : status === 415 ? "UNSUPPORTED_MEDIA_TYPE" : status === 429 ? "RATE_LIMITED" : "REQUEST_REJECTED";
+      const message = status === 413 ? "Request payload too large" : status === 415 ? "Unsupported media type" : status === 429 ? "Too many requests" : "Invalid request";
+      void reply.status(status).send({ error: { code, message } });
       return;
     }
     app.log.error({ err }, "Unhandled error");

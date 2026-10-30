@@ -1,5 +1,5 @@
 /** M04 configuration validation only. This is not on-chain deployment proof. */
-import { LOCAL_FIXTURE_DEPLOYMENT, ARC_TESTNET_DEPLOYMENT, ARC_MAINNET_DEPLOYMENT } from "@noticevault/sdk";
+import { LOCAL_FIXTURE_DEPLOYMENT, ARC_TESTNET_DEPLOYMENT, ARC_MAINNET_DEPLOYMENT, assertRegisteredArcDeploymentPins } from "@noticevault/sdk";
 import type { NoticeVaultDeployment } from "@noticevault/sdk";
 import type { ConfigIdentity } from "./config.js";
 
@@ -18,5 +18,6 @@ export function snapshotConsentDeployment(identity: ConfigIdentity, source?: Not
       if (typeof hash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(hash) || /^0x0{64}$/.test(hash)) throw new Error("Consent manifest requires expected code hashes");
     }
   }
+  if(identity==="ARC_MAINNET")assertRegisteredArcDeploymentPins(identity,source);
   return Object.freeze({ ...source });
 }

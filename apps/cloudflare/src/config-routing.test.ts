@@ -19,5 +19,5 @@ test('proxy preserves absent/forged/correct Origin, cookies, CSRF, idempotency a
  assert.equal(forwardApiRequest(new Request(env.PUBLIC_ORIGIN+'/v1/auth/network'),env.PUBLIC_ORIGIN).url,env.PUBLIC_ORIGIN+'/v1/auth/network');
 });
 test('routing uses four bounded buckets, never changes request or authorizes identity',()=>{
- const buckets=new Set<number>();for(let i=1;i<=32;i++){const r=new Request(env.PUBLIC_ORIGIN+'/api/auth/me',{headers:{'cf-connecting-ip':'198.51.100.'+i,Cookie:'nv_session=synthetic'}});const before=[...r.headers];const bucket=apiShard(r);assert.ok(bucket>=0&&bucket<4);assert.equal(bucket,apiShard(r));assert.deepEqual([...r.headers],before);buckets.add(bucket);}assert.equal(buckets.size,4);
+ const buckets=new Set<number>();for(let i=1;i<=32;i++){const r=new Request(env.PUBLIC_ORIGIN+'/api/auth/me',{headers:{'cf-connecting-ip':'198.51.100.'+i,Cookie:'nv_session=synthetic'}});const before=[...r.headers];const clientKey='edge-ip:198.51.100.'+i;const bucket=apiShard(clientKey);assert.ok(bucket>=0&&bucket<4);assert.equal(bucket,apiShard(clientKey));assert.deepEqual([...r.headers],before);buckets.add(bucket);}assert.equal(buckets.size,4);
 });

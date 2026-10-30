@@ -1,3 +1,4 @@
+import type {InjectedProvider} from './injected-wallet';
 import React from 'react';
 import {arcDeployment} from '../../packages/sdk/src/deployments';
 import { SignIn } from './SignIn.js';
@@ -82,6 +83,7 @@ function FinancialReadiness({ network }: { session: Session | null; network: Aut
 // ── Main panel ────────────────────────────────────────────────────────────────
 
 export interface WorkspacePanelProps {
+  onProvider?: (provider: InjectedProvider | undefined) => void;
   api: DraftReviewClient;
   /** Validated runtime network config from loadAuthNetwork; never fabricated. */
   network: AuthNetwork | null;
@@ -99,7 +101,7 @@ export interface WorkspacePanelProps {
  * Steps 3–4 are static readiness displays; they never fabricate deployment state.
  */
 export function WorkspacePanel({
-  api, network, session, authBusy, onSignedIn, onInvalidated, onBusy, onNetwork,
+  api, network, session, authBusy, onSignedIn, onInvalidated, onBusy, onNetwork, onProvider,
 }: WorkspacePanelProps) {
   const resolvedNetwork = network;
 
@@ -109,6 +111,7 @@ export function WorkspacePanel({
       <SignIn
         api={api}
         onNetwork={onNetwork}
+        onProvider={onProvider}
         onSignedIn={onSignedIn}
         onInvalidated={onInvalidated}
         onBusy={onBusy}

@@ -1,6 +1,7 @@
+import {assertEdgeClientKey} from './edge-client';
 /** Routing only. PG session/membership checks remain authoritative; no response cache. */
-export function apiShard(request:Request){
- const key=(request.headers.get('cf-connecting-ip')??'unknown-edge-client').slice(0,64);
+export function apiShard(key:string){
+ assertEdgeClientKey(key);
  let hash=2166136261;for(let i=0;i<key.length;i++)hash=Math.imul(hash^key.charCodeAt(i),16777619);
  return (hash>>>0)%4;
 }

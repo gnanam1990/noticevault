@@ -1,3 +1,4 @@
+import type {InjectedProvider} from './injected-wallet';
 import {objectValue,parseObject,stringValue,booleanValue,integerValue,arrayValue,nullableString,responseError} from './response-values';
 import {useEffect,useRef,useState} from 'react';
 import {keccak256,toHex} from 'viem';
@@ -12,7 +13,7 @@ export function parsePacket(value:unknown):Packet {
 }
 const fields=[['client','Client'],['provider','Provider'],['token','Token'],['amountPerPeriod','Amount per period (base units)'],['periodSeconds','Period (seconds)'],['noticeSeconds','Notice (seconds)'],['startAt','Start (Unix seconds)'],['clientNonce','Client nonce'],['acceptanceDeadline','Acceptance deadline (Unix seconds)']];
 const input='mt-1 block w-full rounded-lg border border-slate-300 bg-white p-3',button='min-h-11 rounded-lg border border-blue-600 px-4 py-3 text-blue-800 disabled:opacity-50';
-export function PrivateRevisions({session,draft,onSaved,disabled=false}:{session:Session;draft:SavedDraft|null;disabled?:boolean;onSaved:(ws:string,id:string)=>void}){
+export function PrivateRevisions({session,draft,onSaved,disabled=false,provider}:{provider?:InjectedProvider;session:Session;draft:SavedDraft|null;disabled?:boolean;onSaved:(ws:string,id:string)=>void}){
  const [terms,setTerms]=useState(draft?.terms_json??{}),[text,setText]=useState(''),[head,setHead]=useState<number|null>(null),[history,setHistory]=useState<{id:string;revision_number:number}[]>([]);
  const [ws,setWs]=useState(draft?.workspace_id??''),[id,setId]=useState(draft?.id??''),[packet,setPacket]=useState<Packet|null>(null),[grants,setGrants]=useState<Grant[]>([]),[expiry,setExpiry]=useState('');
  const [busy,setBusy]=useState(false),[message,setMessage]=useState('');const active=useRef<AbortController|null>(null);
@@ -42,7 +43,7 @@ export function PrivateRevisions({session,draft,onSaved,disabled=false}:{session
  {!packet.consentAvailable&&<p>Private review is available. Signing remains unavailable until a new revision binds verified deployment configuration.</p>}
  {packet.canManage&&<div className="space-y-3"><p>Grant access only to provider <strong className="break-all">{String(packet.terms.provider)}</strong> on chain {packet.chainId}, for this revision alone.</p><label className="block">Access expires (UTC ISO date)<input className={input} value={expiry} disabled={disabled||busy} onChange={e=>setExpiry(e.target.value)}/></label><button className={button} disabled={disabled||busy} onClick={()=>void run(async()=>{await request(base+'/provider-grants','POST',{expiresAt:expiry});await loadPacket();setMessage('This revision is now available to its exact authenticated provider. No notification was sent.');})}>Grant this provider access to this revision</button>
  {grants.map(g=><div key={g.id} className="rounded border p-3"><p>Expires {g.expires_at} · {g.revoked_at?'Revoked':'Access grant'}</p><button className={button} disabled={disabled||busy||Boolean(g.revoked_at)} onClick={()=>void run(async()=>{await request(base+'/provider-grants/'+g.id,'DELETE');await loadPacket();setMessage('Future access revoked. Previously downloaded data or valid financial signatures cannot be retracted.');})}>Revoke this grant</button></div>)}</div>}
- {String(packet.terms.provider).toLowerCase()===session.address.toLowerCase()&&<OperatorConsent workspaceId={ws} draftId={id} disabled={disabled||busy||!packet.consentAvailable}/>}
+ {String(packet.terms.provider).toLowerCase()===session.address.toLowerCase()&&<OperatorConsent provider={provider} workspaceId={ws} draftId={id} disabled={disabled||busy||!packet.consentAvailable}/>}
  </article>}
  </div>{message&&<p role="status" className="mt-4 whitespace-pre-wrap">{message}</p>}</section>;
 }

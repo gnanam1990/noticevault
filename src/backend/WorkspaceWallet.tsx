@@ -1,3 +1,4 @@
+import {invalidateWalletSelection} from './wallet-selection';
 import React,{useEffect,useRef,useState} from 'react';
 import {discoverOwnerWallets,OwnerWalletSession,walletFailure,type WalletChoice,type WalletStatus} from './owner-wallet-session';
 import type {InjectedProvider} from './injected-wallet';
@@ -10,7 +11,7 @@ export function WorkspaceWallet({network,disabled,onProvider,onStatus}:Props){
  const callbacks=useRef({onProvider,onStatus});useEffect(()=>{callbacks.current={onProvider,onStatus};},[onProvider,onStatus]);
  useEffect(()=>{mounted.current=true;const active=handles.current;const generation=epoch;active.discovery=discoverOwnerWallets(window,setChoices);return()=>{mounted.current=false;generation.current+=1;active.session?.dispose();active.discovery?.dispose();};},[]);
  function clear(){setStatus(null);callbacks.current.onStatus(null);}
- function select(id:string){if(disabled||running.current)return;++epoch.current;handles.current.session?.dispose();clear();setSelected(id);const choice=choices.find(c=>c.id===id);callbacks.current.onProvider(choice?.provider);
+ function select(id:string){if(disabled||running.current)return;invalidateWalletSelection();++epoch.current;handles.current.session?.dispose();clear();setSelected(id);const choice=choices.find(c=>c.id===id);callbacks.current.onProvider(choice?.provider);
   handles.current.session=choice?new OwnerWalletSession(choice.provider,()=>{if(!mounted.current)return;++epoch.current;clear();setMessage('Wallet account or network changed. Check wallet status again before signing in.');}):null;
   setMessage(choice?'Wallet selected. Check status without a popup, or Connect to request account access.':'Select a wallet.');
  }

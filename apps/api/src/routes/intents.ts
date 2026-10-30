@@ -1,3 +1,4 @@
+import { isUuid } from "../request-identifiers.js";
 /**
  * @noticevault/api — intent routes
  *
@@ -75,6 +76,7 @@ export async function intentRoutes(
     wsId:          string,
     memberAddress: string, chainId: bigint, edit=false,
   ): Promise<void> {
+    if (!isUuid(wsId)) throw badRequest("Invalid workspace ID");
     const ws = await getWorkspaceById(pool, schema, wsId);
     if (!ws) throw notFound("workspace", wsId);
     const membership = await getMembership(pool, schema, wsId, memberAddress, chainId);
@@ -163,6 +165,7 @@ export async function intentRoutes(
     "/workspaces/:wsId/intents/:id",
     async (req, reply) => {
       const session = await requireSession(req, pool, schema);
+      if (!isUuid(req.params.id)) throw badRequest("Invalid intent ID");
       await authorizeWorkspaceMember(req.params.wsId, session.memberAddress, session.chainId);
 
       const intent = await getIntentById(pool, schema, req.params.id, req.params.wsId);

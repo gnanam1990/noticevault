@@ -1,3 +1,4 @@
+import type {InjectedProvider} from './injected-wallet';
 import {EvidenceDownloads} from './EvidenceDownloads';
 import {OperatorSettlement} from './OperatorSettlement';
 import {OperatorRenewal} from './OperatorRenewal';
@@ -7,7 +8,7 @@ import {useEffect,useMemo,useState} from 'react';
 import {IndexedClient,LatestIndexedRead,type IndexedPage,type IndexedDetail,type IndexedEntry} from './indexed-client.js';
 import {ReviewError} from './draft-review.js';
 const api=new IndexedClient();
-export default function IndexedAgreements({workspaceId,chainId,onExpired}:{workspaceId:string;chainId:string;onExpired:()=>void}){
+export default function IndexedAgreements({workspaceId,chainId,onExpired,provider}:{workspaceId:string;chainId:string;onExpired:()=>void;provider?:InjectedProvider}){
  const requests=useMemo(()=>new LatestIndexedRead(),[]),[page,setPage]=useState<IndexedPage|null>(null),[detail,setDetail]=useState<IndexedDetail|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[cursors,setCursors]=useState<(string|null)[]>([null]);
  useEffect(()=>()=>requests.cancel(),[requests]);
  const failure=(e:unknown)=>{setBusy(false);setDetail(null);if(e instanceof ReviewError&&e.status===401){onExpired();return;}setError(e instanceof ReviewError?e.message:'Unable to load indexed records. Try again.');};
@@ -27,8 +28,8 @@ export default function IndexedAgreements({workspaceId,chainId,onExpired}:{works
  <dl className="grid gap-2 sm:grid-cols-2">{Object.entries({'Amount per payment period':f.amountPerPeriod,'Payment period (seconds)':f.periodSeconds,'Notice duration (seconds)':f.noticeSeconds,'Agreement start (Unix seconds)':f.startAt,'Initial total funding':f.initialFunded,'Initial notice reserve':f.noticeReserve,'Cumulative regular funding':f.regularFunded,'Funded through (Unix seconds)':f.fundedThrough,'Cumulative regular earnings claimed':f.regularPaid,'Cumulative notice earnings claimed':f.noticePaid,'Cumulative client refunds':f.clientRefunded,'Last claim event (Unix seconds)':f.lastClaimObservedAt??'No recorded claim'}).map(([k,v])=><div key={k}><dt className="text-sm font-medium">{k}</dt><dd className="font-mono text-sm">{v}</dd></div>)}</dl>
  <p>{f.notice?'Recorded notice: '+(f.notice.reason==='1'?'Client cancellation':'Payment default')+'; start '+f.notice.start+'; end '+f.notice.end:'No recorded notice event.'}</p>
  <h4 className="font-medium">Canonical provenance</h4><dl className="text-sm space-y-1">{Object.entries(p).map(([k,v])=><div key={k}><dt>{k}</dt><dd className="font-mono">{v??'Unknown'}</dd></div>)}</dl><p className="text-sm">Reorganizations can change or remove these projections. Refresh to read the latest stored canonical state; no live freshness guarantee is provided.</p></div>}
- {f&&p&&detail&&<OperatorSettlement key={'operator-settlement:'+workspaceId+chainId+detail.agreement} workspaceId={workspaceId} streamId={detail.streamId} agreement={detail.agreement}/>}
-  {f&&p&&detail&&<OperatorRenewal key={'operator:'+workspaceId+chainId+detail.agreement} workspaceId={workspaceId} streamId={detail.streamId} agreement={detail.agreement}/>}
+ {f&&p&&detail&&<OperatorSettlement provider={provider} key={'operator-settlement:'+workspaceId+chainId+detail.agreement} workspaceId={workspaceId} streamId={detail.streamId} agreement={detail.agreement}/>}
+  {f&&p&&detail&&<OperatorRenewal provider={provider} key={'operator:'+workspaceId+chainId+detail.agreement} workspaceId={workspaceId} streamId={detail.streamId} agreement={detail.agreement}/>}
   {f&&p&&detail&&<AgreementRenewalReview key={workspaceId+chainId+detail.agreement} agreement={detail.agreement} chainId={chainId}/>}
  {f&&p&&detail&&<AgreementSettlementReview key={"settlement:"+workspaceId+chainId+detail.agreement} agreement={detail.agreement} chainId={chainId}/>}
  {p&&detail&&<EvidenceDownloads key={workspaceId+chainId+detail.agreement} workspaceId={workspaceId} chainId={chainId} streamId={detail.streamId} agreement={detail.agreement} onExpired={onExpired}/> }

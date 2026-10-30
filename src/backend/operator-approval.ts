@@ -1,6 +1,7 @@
+import {onWalletSelectionChange} from './wallet-selection';
 import {parseObject,stringValue} from './response-values';
 import {AGREEMENT_ABI,FACTORY_ABI,parseTerms,type SerializedTerms} from '../../packages/sdk/src/index';
-import {decodeFunctionData,erc20Abi,toHex,type Hex} from 'viem';
+import {decodeFunctionData,erc20Abi,keccak256,toHex,type Hex} from 'viem';
 import {DurableAttemptClient,type DurableAttempt} from './durable-attempt';
 import {injectedWallet,type InjectedProvider} from './injected-wallet';
 export type RenewalContext=Readonly<{agreement:string;streamId:string;action:'approve-renewal'|'fund-renewal'|'start-notice'|'materialize-notice'|'claim-provider'|'claim-client-refund'}>;
@@ -21,10 +22,10 @@ export function parseApprovalJournal(raw:string):ApprovalJournal {
 export class OperatorApprovalController{
  private state:OperatorState={status:'idle',message:'Connect and review the exact transaction.'};private listeners=new Set<()=>void>();private epoch=0;private expiry=0;private journal:ApprovalJournal|null=null;private unsubscribe:()=>void;
  readonly storageKey:string;
- constructor(private workspace:string,private draft:string,private pins:ApprovalPins,private provider:InjectedProvider,private storage:StoragePort,private locks:Locks,private api:Client=new DurableAttemptClient(undefined,'OPERATOR_CONFIGURED'),private creation?:{terms:SerializedTerms;version:number;docHash:string},private renewal?:RenewalContext){
-  this.pins=Object.freeze({...pins});if(renewal)this.renewal=Object.freeze({...renewal,agreement:renewal.agreement.toLowerCase()});if(creation)this.creation=structuredClone(creation);this.storageKey=['noticevault:operator-approval:v1',pins.chainId,workspace,draft].join(':');
+ constructor(private workspace:string,private draft:string,private pins:ApprovalPins,private provider:InjectedProvider,private storage:StoragePort,private locks:Locks,private api:Client=new DurableAttemptClient(undefined,'OPERATOR_CONFIGURED'),private creation?:{terms:SerializedTerms;version:number;docHash:string},private renewal?:RenewalContext,private approvalDraft?:{terms:SerializedTerms;version:number;docHash:string}){
+  this.pins=Object.freeze({...pins});if(renewal)this.renewal=Object.freeze({...renewal,agreement:renewal.agreement.toLowerCase()});if(creation)this.creation=structuredClone(creation);if(approvalDraft)this.approvalDraft=structuredClone(approvalDraft);this.storageKey=['noticevault:operator-approval:v1',pins.chainId,workspace,draft].join(':');
   try{const raw=storage.getItem(this.storageKey);if(raw){const j=parseApprovalJournal(raw);if(!j||!address.test(j.account)||j.chainId!==pins.chainId||!['reserved','unknown'].includes(j.stage)||typeof j.requestId!=='string')throw Error('Invalid journal');this.journal=j;this.state={status:'locked',message:'Saved attempt requires reconciliation. No automatic resubmission.'};}}catch{this.state={status:'locked',message:'Journal unavailable or corrupt; preserved. Submission blocked.'};}
-  this.unsubscribe=injectedWallet(provider).onChange?.(()=>this.invalidate())??(()=>{});
+  const walletDetach=injectedWallet(provider).onChange?.(()=>this.invalidate());const selectionDetach=onWalletSelectionChange(()=>this.invalidate());this.unsubscribe=()=>{walletDetach?.();selectionDetach();};
  }
  snapshot=()=>this.state;subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
  private set(s:OperatorState){this.state=Object.freeze(s);for(const fn of this.listeners)fn();}
@@ -68,6 +69,14 @@ export class OperatorApprovalController{
   }
   return r;
  }
+ private approvalExpectation(){
+  const c=this.approvalDraft;if(!c||!Number.isSafeInteger(c.version)||c.version<1||!hash.test(c.docHash))throw Error('Reviewed draft context required');
+  const t=parseTerms(c.terms);if(t.token.toLowerCase()!==this.pins.token.toLowerCase()||t.termsDocumentHash.toLowerCase()!==c.docHash.toLowerCase())throw Error('Reviewed draft identity mismatch');
+  const amount=t.amountPerPeriod+(t.amountPerPeriod*t.noticeSeconds+t.periodSeconds-1n)/t.periodSeconds;
+  if(amount<=0n||amount>=(1n<<256n))throw Error('Invalid initial deposit');
+  const cycleKey=keccak256(toHex(JSON.stringify({draft:this.resource(),version:c.version,document:c.docHash,nonce:String(t.clientNonce)},(_k,v)=>typeof v==='bigint'?String(v):v,2)));
+  return {terms:t,amount:String(amount),cycleKey};
+ }
  private check(r:DurableAttempt){const p=r.preparation;
   if(r.source!=='OPERATOR_CONFIGURED'||r.workspaceId!==this.workspace||r.resource!==this.resource()||r.action!==(this.action())||r.chainId!==this.pins.chainId||p.chainId!==r.chainId||p.actor.toLowerCase()!==r.account.toLowerCase()||p.policyHash!==this.pins.policyHash||p.target.toLowerCase()!==(this.renewal&&this.renewal.action!=='approve-renewal'?this.renewal.agreement:this.creation?this.pins.factory:this.pins.token).toLowerCase()||p.value!=='0'||!/^[0-9a-f]{64}$/i.test(r.binding))throw Error('Approval identity or policy mismatch');
   if(this.renewal)return this.checkRenewal(r);
@@ -78,13 +87,15 @@ export class OperatorApprovalController{
    if(Object.entries(expected).some(([key,value])=>String(actual[key]).toLowerCase()!==String(value).toLowerCase())||expected.client.toLowerCase()!==r.account.toLowerCase()||expected.token.toLowerCase()!==this.pins.token.toLowerCase()||expected.termsDocumentHash.toLowerCase()!==this.creation.docHash.toLowerCase())throw Error('Creation terms differ from reviewed draft');
    return r;
   }
-  if(!p.approval)throw Error('Exact approval required');
+  const expected=this.approvalExpectation();
+  if(!p.approval||expected.terms.client.toLowerCase()!==r.account.toLowerCase()||p.cycleKey!==expected.cycleKey)throw Error('Exact reviewed draft approval required');
   const call=decodeFunctionData({abi:erc20Abi,data:p.data as Hex});
-  if(call.functionName!=='approve'||String(call.args[0]).toLowerCase()!==this.pins.factory.toLowerCase()||String(call.args[0]).toLowerCase()!==p.approval.spender.toLowerCase()||String(call.args[1])!==p.approval.amount||BigInt(p.approval.amount)<=0n||BigInt(p.approval.amount)>=(1n<<256n)-1n)throw Error('Exact bounded approval required');
+  if(call.functionName!=='approve'||String(call.args[0]).toLowerCase()!==this.pins.factory.toLowerCase()||String(call.args[0]).toLowerCase()!==p.approval.spender.toLowerCase()||String(call.args[1])!==expected.amount||p.approval.amount!==expected.amount)throw Error('Exact bounded approval required');
   return r;
  }
  async prepare(){if(!['idle','error'].includes(this.state.status)||this.journal)return;const epoch=++this.epoch;this.set({status:'busy',message:'Connecting wallet and reserving the exact transaction.'});
   try{await this.locks.request(this.storageKey,async()=>{
+   if(this.action()==='approve-creation')this.approvalExpectation();
    if(this.storage.getItem(this.storageKey))throw Error('Another attempt exists; reload and reconcile.');
    const wallet=await injectedWallet(this.provider).connect();if(epoch!==this.epoch)return;
    if(String(wallet.chainId)!==this.pins.chainId)throw Error('Wrong wallet chain');

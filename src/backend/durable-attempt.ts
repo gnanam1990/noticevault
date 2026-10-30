@@ -1,3 +1,4 @@
+import {canonicalAttemptResource} from '../../packages/sdk/src/attempt-identity';
 import {isDurableAttempt} from './durable-wire';
 import {validBusinessOutcome} from './business-outcome.js';
 import type {DurableBusinessOutcome} from './business-outcome.js';
@@ -9,11 +10,12 @@ export type DurableNoticeOutcome=Readonly<{kind:'STATE_CHANGED'|'NO_CHANGE';acti
 export type DurableFundingOutcome=Readonly<{kind:'STATE_CHANGED';action:'fund-renewal';agreement:string;client:string;token:string;termsHash:string;fundedAmount:string;periodSeconds:string;previousRegularFunded:string;newRegularFunded:string;previousFundedThrough:string;newFundedThrough:string;observedRegularFunded:string;observedLiability:string;observedBalance:string;observedAllowance:string}>;
 export type DurableAttempt=Readonly<{source:'SYNTHETIC'|'OPERATOR_CONFIGURED';id:string;workspaceId:string;account:string;chainId:string;resource:string;action:string;binding:string;state:'reserved'|'unknown'|'submitted'|'confirmed'|'reverted'|'reorged'|'conflicted'|'cancelled';revision:number;hash:string|null;claimed?:boolean;discovery?:DurableDiscoveryProgress|null;preparation:DurablePreparation;proof?:Readonly<{blockNumber:string;blockHash:string;outcome?:DurableApprovalOutcome|DurableNoticeOutcome|DurableFundingOutcome|DurableBusinessOutcome}>|null}>;
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function id(v:string){if(!uuid.test(v))throw new DurableAttemptError(400);return encodeURIComponent(v);}
+function id(v:string){if(!uuid.test(v))throw new DurableAttemptError(400);return encodeURIComponent(v.toLowerCase());}
 /** No executor and no automatic retry. A lost claim response requires GET/reconciliation, never another execution. */
 export class DurableAttemptClient{
  constructor(private fetcher:Fetcher=(p,i)=>fetch(p,i),private expectedSource:'SYNTHETIC'|'OPERATOR_CONFIGURED'='SYNTHETIC'){}
  private async request(ws:string,path:string,body?:unknown,signal?:AbortSignal):Promise<DurableAttempt>{
+  id(ws);ws=ws.toLowerCase();
   let r:Response;try{r=await this.fetcher('/api/workspaces/'+id(ws)+'/attempts'+path,{method:body===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',redirect:'error',headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest',...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)}),...(signal?{signal}:{})});}catch(e){if(signal?.aborted)throw e;throw new DurableAttemptError(0);}
   if(!r.ok)throw new DurableAttemptError(r.status);if(!r.headers.get('content-type')?.includes('application/json'))throw new DurableAttemptError(502);
   let value:unknown;try{value=await r.json();}catch{throw new DurableAttemptError(502);}if(!isDurableAttempt(value))throw new DurableAttemptError(502);const v=value;
@@ -38,8 +40,8 @@ export class DurableAttemptClient{
   }
   validateDiscovery(v);return Object.freeze(v);
  }
- async reserve(ws:string,resource:string,action:string,requestId:string,signal?:AbortSignal){id(requestId);const r=await this.request(ws,'',{resource,action,requestId},signal);if(r.resource!==resource||r.action!==action)throw new DurableAttemptError(502);return r;}
- private async action(ws:string,attempt:string,operation:string,signal?:AbortSignal){const r=await this.request(ws,'/'+id(attempt)+(operation?'/'+operation:''),operation?{}:undefined,signal);if(r.id!==attempt)throw new DurableAttemptError(502);return r;}
+ async reserve(ws:string,resource:string,action:string,requestId:string,signal?:AbortSignal){id(requestId);requestId=requestId.toLowerCase();resource=canonicalAttemptResource(resource);const r=await this.request(ws,'',{resource,action,requestId},signal);if(r.resource!==resource||r.action!==action)throw new DurableAttemptError(502);return r;}
+ private async action(ws:string,attempt:string,operation:string,signal?:AbortSignal){id(attempt);attempt=attempt.toLowerCase();const r=await this.request(ws,'/'+id(attempt)+(operation?'/'+operation:''),operation?{}:undefined,signal);if(r.id!==attempt)throw new DurableAttemptError(502);return r;}
  get(ws:string,attempt:string,signal?:AbortSignal){return this.action(ws,attempt,'',signal);}
  async claim(ws:string,attempt:string,signal?:AbortSignal){const r=await this.action(ws,attempt,'claim',signal);if(r.claimed!==true||r.state!=='unknown')throw new DurableAttemptError(502);return r;}
  reconcile(ws:string,attempt:string,signal?:AbortSignal){return this.action(ws,attempt,'reconcile',signal);}

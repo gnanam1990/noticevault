@@ -47,7 +47,7 @@ try{
   }throw Error('Unexpected synthetic wallet request');
  }};
  let current:OperatorApprovalController|undefined;
- const make=(draft:string)=>new OperatorApprovalController(ws,draft,{chainId:'5042002',token:f.f.config.deployment.allowlistedToken!,factory:f.f.config.deployment.factoryAddress!,policyHash:f.composed.runtime.policyHash},provider,storage,locks,api);
+ const make=(draft:string)=>new OperatorApprovalController(ws,draft,{chainId:'5042002',token:f.f.config.deployment.allowlistedToken!,factory:f.f.config.deployment.factoryAddress!,policyHash:f.composed.runtime.policyHash},provider,storage,locks,api,undefined,undefined,{terms:f.row.terms_json,version:1,docHash:f.row.doc_hash});
  const draft=async()=>{const id=randomUUID();await createDraft(pool,schema,id,ws,actor.address,f.row.terms_json,f.row.doc_hash);return id;};
  let first='';
  await check('authenticated API and real DB reserve claim before fake send and canonical reconciliation',async()=>{

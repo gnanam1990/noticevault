@@ -1,3 +1,4 @@
+import {assertWorkerDeploymentIdentity} from '../../api/src/worker-service';
 import {DurableObject} from 'cloudflare:workers';
 import {createPool} from '../../../packages/db/src/index';
 import {workerConfig} from '../../worker/src/config';
@@ -11,7 +12,7 @@ export class NoticeVaultIndexer extends DurableObject<Record<string,string>>{
  async alarm(){
   const e=this.env;if(e.INDEXER_ENABLED!=='true')return;
   const interval=Number(e.INDEXER_INTERVAL_MS);if(!Number.isInteger(interval)||interval<60000||interval>3600000)throw Error('INDEXER_INTERVAL_REQUIRED');
-  const api=cloudConfig(e),cfg=workerConfig(JSON.parse(e.WORKER_CONFIG_JSON??'null'));if(cfg.schema!==api.db.schema)throw Error('WORKER_DB_SCHEMA_MISMATCH');
+  const api=cloudConfig(e),cfg=workerConfig(JSON.parse(e.WORKER_CONFIG_JSON??'null'));assertWorkerDeploymentIdentity(api.configIdentity,cfg.rpcPolicy);if(cfg.schema!==api.db.schema)throw Error('WORKER_DB_SCHEMA_MISMATCH');
   const pool=createPool(api.db),stop=new AbortController(),timer=setTimeout(()=>stop.abort(),120000);let status:WorkerStatus|undefined;
   try{status=await runBoundedWorker(pool,cfg,httpRpc(cfg.primaryRpc,cfg.rpcPolicy.requestTimeoutMs),httpRpc(cfg.verificationRpc,cfg.rpcPolicy.requestTimeoutMs),stop.signal);await this.ctx.storage.put('lastStatus',{at:Date.now(),...status});}
   catch{await this.ctx.storage.put('lastStatus',{at:Date.now(),state:'failed'});}
