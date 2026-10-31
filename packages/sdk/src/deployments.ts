@@ -70,11 +70,11 @@ export function requireFactoryAddress(deployment: NoticeVaultDeployment): string
   return deployment.factoryAddress;
 }
 
-/** Verified factory evidence: implementation-records/mainnet-factory-20261029.json. Pins do not enable operator execution. */
+/** Verified factory evidence: implementation-records/mainnet-factory-20261031.json. Pins do not enable operator execution. */
 export const ARC_MAINNET_DEPLOYMENT: NoticeVaultDeployment = Object.freeze({
- configIdentity: 'ARC_MAINNET', chainId: 5042n, factoryAddress: '0x801c366eb4e07162fca1f260d78338a3433d81e2', allowlistedToken: '0x3600000000000000000000000000000000000000',
- expectedFactoryCodeHash: '0x2bf50890f25141984a000a767b15b665cad108a64416422a2de3179d976b1006', expectedTokenCodeHash: '0xc9987bd3af6b26a030951faa7eacc017b68343aeedf3ce5fe68f821c4b93939d', isLive: true,
- label: 'Arc Mainnet — factory verified; application activation pending',
+ configIdentity: 'ARC_MAINNET', chainId: 5042n, factoryAddress: '0x2181a20d8b2cdb94685ec65b282f16e8d8458737', allowlistedToken: '0x3600000000000000000000000000000000000000',
+ expectedFactoryCodeHash: '0x7f99734081518294a522f56a5f5213ac15bd143e9f7f79c3936236e17aaa7bbe', expectedTokenCodeHash: '0xc9987bd3af6b26a030951faa7eacc017b68343aeedf3ce5fe68f821c4b93939d', isLive: true,
+ label: 'Arc Mainnet — corrected factory verified; application activation pending',
 });
 export function arcDeployment(identity: string): NoticeVaultDeployment {
  if(identity==='ARC_TESTNET')return ARC_TESTNET_DEPLOYMENT;
