@@ -12,13 +12,13 @@ export const ABI_PROVENANCE = {
   factory: {
     contractName: "NoticeVaultFactory",
     source:       "contracts/out/NoticeVaultFactory.sol/NoticeVaultFactory.json",
-    sha256:       "67ade7ce0d1697e0a1073d46f5ceaea8289b2484b4760decc6843f9b05c64183",
-    entryCount:   39,
+    sha256:       "4bcf1e7e1a8b57c56e292629e482c6d0ce1f2d6dc2798b4ccc4f898eb3ee6c56",
+    entryCount:   38,
   },
   agreement: {
     contractName: "NoticeVaultAgreement",
     source:       "contracts/out/NoticeVaultAgreement.sol/NoticeVaultAgreement.json",
-    sha256:       "88167a66b23e24a054d1ef1f146ae45737e006084590bbcb153f29bf4b1974c0",
+    sha256:       "d5bb18d390b2b4c7a14850602b9e22fd99e5a25f3ecba9e35745d37c1eaad688",
     entryCount:   41,
   },
 } as const;

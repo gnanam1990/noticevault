@@ -8,7 +8,7 @@ const small=(v:unknown,max:number)=>typeof v==='number'&&Number.isInteger(v)&&v>
 function requireValue(ok:unknown,label:string):asserts ok {if(!ok)throw new Error('Malformed agreement RPC '+label);}
 function validateRead(name:string,v:unknown):void {
  if(['registeredAgreement','creationPaused','isNonceUnavailable'].includes(name)){requireValue(typeof v==='boolean',name);return;}
- if(['factoryCap','agreementCap','outstandingLiability','balanceOf','allowance'].includes(name)){requireValue(uint(v),name);return;}
+ if(['factoryCap','agreementCap','outstandingLiability','allocatedCapacity','perAgreementAllocation','balanceOf','allowance'].includes(name)){requireValue(uint(v),name);return;}
  if(name==='token'){requireValue(address(v),name);return;}
  if(name==='terms'){
   requireValue(Array.isArray(v)&&v.length===11,name);

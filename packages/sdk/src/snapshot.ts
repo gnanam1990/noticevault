@@ -1,3 +1,4 @@
+import { usesLegacyCapacity } from "./capacity.js";
 import { validatedAgreementRpc } from "./agreement-rpc.js";
 /**
  * @noticevault/sdk — simulation snapshot and onchain verifier
@@ -333,6 +334,7 @@ function _issue(obs: VerifiedObservation, binding?: TargetBinding): VerifiedObse
   let factoryCap: bigint;
   let agreementCap: bigint;
   let factoryOutstandingL: bigint;
+  let factoryAllocatedCapacity: bigint | undefined, agreementAllocation: bigint | undefined;
   let factoryCreationPaused: boolean;
   try {
     factoryCap         = (await client.readContract({ address: factoryAddr, abi: FACTORY_ABI, functionName: "factoryCap",            args: [], blockNumber })) as bigint;
@@ -341,6 +343,16 @@ function _issue(obs: VerifiedObservation, binding?: TargetBinding): VerifiedObse
     factoryCreationPaused = (await client.readContract({ address: factoryAddr, abi: FACTORY_ABI, functionName: "creationPaused",     args: [], blockNumber })) as boolean;
   } catch (err) {
     return _issue(_failObs("rpc_failure", `factory cap/pause read failed: ${_msg(err)}`, dep, observedAt, block));
+  }
+
+  if (!usesLegacyCapacity(dep)) {
+    try {
+      factoryAllocatedCapacity = await client.readContract({ address: factoryAddr, abi: FACTORY_ABI, functionName: "allocatedCapacity", args: [], blockNumber }) as bigint;
+      agreementAllocation = await client.readContract({ address: factoryAddr, abi: FACTORY_ABI, functionName: "perAgreementAllocation", args: [agreementAddress], blockNumber }) as bigint;
+    } catch (err) { return _issue(_failObs("rpc_failure", "Reservation reads failed: " + _msg(err), dep, observedAt, block)); }
+    if (![factoryCap, agreementCap, factoryOutstandingL, factoryAllocatedCapacity, agreementAllocation].every(v => typeof v === "bigint" && v >= 0n && v < (1n << 256n)) ||
+        factoryOutstandingL > factoryAllocatedCapacity! || factoryAllocatedCapacity! > factoryCap || agreementAllocation! > agreementCap || agreementAllocation! > factoryAllocatedCapacity!)
+      return _issue(_failObs("accounting_mismatch", "Invalid reservation accounting", dep, observedAt, block));
   }
 
   // Nonce read requires a client address (optional — not fatal if absent)
@@ -677,6 +689,9 @@ function _issue(obs: VerifiedObservation, binding?: TargetBinding): VerifiedObse
     ));
   }
 
+  if (agreementAllocation !== undefined && contractPreview.L > agreementAllocation)
+    return _issue(_failObs("accounting_mismatch", "Agreement liability exceeds reserved allocation", dep, observedAt, block));
+
   // ── 16. Build final ok observation ────────────────────────────────────────────
   const binding: TargetBinding = {
     agreementAddress: agreementAddress.toLowerCase(),
@@ -695,6 +710,8 @@ function _issue(obs: VerifiedObservation, binding?: TargetBinding): VerifiedObse
     factoryCap,
     agreementCap,
     factoryOutstandingL,
+    ...(factoryAllocatedCapacity !== undefined ? { factoryAllocatedCapacity } : {}),
+    ...(agreementAllocation !== undefined ? { agreementAllocation } : {}),
 
     observedTerms,
     regularFunded,
@@ -865,6 +882,7 @@ export async function observeFactoryForCreation(
 
   // Factory caps, pause, nonce
   let factoryCap: bigint, agreementCap: bigint, factoryOutstandingL: bigint;
+  let factoryAllocatedCapacity: bigint | undefined;
   let factoryCreationPaused: boolean, nonceUnavailable: boolean;
   try {
     factoryCap         = (await client.readContract({ address: factoryAddr, abi: FACTORY_ABI, functionName: "factoryCap",           args: [], blockNumber })) as bigint;
@@ -879,6 +897,13 @@ export async function observeFactoryForCreation(
   if (![factoryCap, agreementCap, factoryOutstandingL].every(isUint256) ||
       typeof factoryCreationPaused !== "boolean" || typeof nonceUnavailable !== "boolean")
     return _issueFactoryObservation(_failFac("rpc_failure", "Invalid factory read values", block));
+
+  if (!usesLegacyCapacity(dep)) {
+    try { factoryAllocatedCapacity = await client.readContract({ address: factoryAddr, abi: FACTORY_ABI, functionName: "allocatedCapacity", args: [], blockNumber }) as bigint; }
+    catch (err) { return _issueFactoryObservation(_failFac("rpc_failure", "Reservation read failed: " + _msg(err), block)); }
+    if (!isUint256(factoryAllocatedCapacity) || factoryOutstandingL > factoryAllocatedCapacity || factoryAllocatedCapacity > factoryCap)
+      return _issueFactoryObservation(_failFac("accounting_mismatch", "Invalid factory reservation accounting", block));
+  }
 
   // Token: client balance + allowance to factory
   let clientBalance: bigint, clientAllowanceToFactory: bigint;
@@ -918,6 +943,7 @@ export async function observeFactoryForCreation(
     factoryCap,
     agreementCap,
     factoryOutstandingL,
+    ...(factoryAllocatedCapacity !== undefined ? { factoryAllocatedCapacity } : {}),
     factoryCreationPaused,
     nonceUnavailable,
     clientBalance,

@@ -48,7 +48,7 @@ const ARTIFACTS: ArtifactEntry[] = [
 
 const REQUIRED_FACTORY: string[] = [
   "createAgreement","invalidateNonce","isNonceUnavailable","outstandingLiability",
-  "factoryCap","agreementCap","token","registeredAgreement","setCreationPaused",
+  "factoryCap","agreementCap","allocatedCapacity","perAgreementAllocation","token","registeredAgreement","setCreationPaused",
   "AgreementCreated","NonceInvalidated","CapacityChanged","CreationPauseChanged",
 ];
 const REQUIRED_AGREEMENT: string[] = [

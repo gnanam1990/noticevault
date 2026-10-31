@@ -24,10 +24,10 @@ This is a hackathon project built in [Arc Studio](https://studio.arc.io/app/8b22
 | Layer | What is established | What remains |
 | --- | --- | --- |
 | Original mainnet factory | Deployment receipt, creation data, runtime bytecode and constructor values were checked on 29 October | This address does not contain later contract source revisions |
-| Public source | Latest verified published baseline: [79be61a](https://github.com/gnanam1990/noticevault/commit/79be61a15be6b85a80558ee2da201aa18d1d7885) | Subsequent canonical changes, including this README and release profile, await the next source publication |
+| Public source | Latest verified published baseline: [258d300](https://github.com/gnanam1990/noticevault/commit/258d30029f8c0ad5c2f46fcc1bf3df356e032f7d) | The subsequent renewal-capacity candidate and this status update remain canonical Studio changes awaiting publication approval |
 | Updated application | Read-only mainnet release built, checked and deployed from Studio | Cloudflare version 89563a24-ccfa-4423-ad44-106ac1974004 deployed successfully; Chrome loaded the expected assets and live mainnet data; direct HTTP hash verification remains blocked by 403 responses |
 | Wallet / workspace | Live Workspace reports Arc Mainnet (5042) and the recorded original factory; account connection and draft/review paths exist in source | Public-site wallet warning remains unresolved; no warning bypass is permitted |
-| Financial execution | Explicit execution and operator gates remain off | Corrected contract decision, owner-signed deployment if required, configured runtime and a limited real-USDC acceptance flow |
+| Financial execution | Explicit execution and operator gates remain off | Corrected contract candidate prepared; owner-signed replacement deployment, verified replacement pins, configured runtime and a limited real-USDC acceptance flow |
 | Indexing / scheduling | Source includes bounded indexing work | Hosted indexing and cron remain off; production catch-up is not claimed |
 
 A deployed factory proves deployment. It does not prove that the latest website is served, that revised source matches that factory, or that a client/provider transaction flow has completed. The read-only release is an intermediate milestone toward a working mainnet submission.
@@ -146,7 +146,7 @@ The recorded verification used one read-only RPC provider. It is not a claim of 
 
 Agreement participants, token and economic terms are immutable. The guardian can pause new agreement creation; the source does not give the guardian a general right to redirect payouts. The existing contracts have no upgrade path that installs repository changes into the deployed address. A revised contract needs a separately reviewed deployment, a fresh owner-signed transaction, receipt/runtime verification and an explicit application pin update.
 
-The low caps are deliberate pilot bounds on outstanding liabilities, not a statement of production throughput or a deposit recommendation. Capacity can constrain renewals. The choice between a restricted pilot and revised renewal-capacity semantics is still pending; caps have not been silently increased.
+The original deployed factory keeps its original capacity behavior. The corrected, not-yet-deployed source keeps the same 10 USDC factory and 1 USDC agreement limits, but reserves the full agreement limit for each admitted agreement. Admission requires **2A + R <= 1 USDC**. Active claims retain that reservation; once notice is effective, claims release unused allocation while retaining all unpaid liabilities. This protects an existing agreement from another agreement consuming its renewal capacity. After claiming accrued earnings, an ordinary next-period renewal during [D - P, D) fits its reservation. Repeated early prepayments can still hit the agreement limit. At most ten full active reservations fit the pilot factory; new admissions are not guaranteed. No custody or payout recipient changes are introduced. The SDK now enforces these reservation rules and explains claim-before-renewal. Only the exact verified original factory identity retains legacy reads; other factories require valid pinned allocation reads. A new owner-signed factory deployment and receipt/runtime verification are still required before changing live pins or enabling execution.
 
 ## Run the public source locally
 
@@ -199,7 +199,8 @@ These are existing canonical-source results, reused rather than rerun for this d
 | Scope | Recorded result |
 | --- | --- |
 | Previous affected application group | 475 frontend, 253 SDK, 471 API and 12 Cloudflare tests passed; associated typechecks/build passed |
-| Contract source revisions | 90 Solidity tests passed, including 19 consent tests |
+| Corrected contract candidate | 98 Solidity tests passed, including 19 consent tests and eight focused renewal-capacity tests; not deployed |
+| Reservation-aware SDK/UI | 265 SDK tests passed, followed by two additional legacy/frozen-evidence checks; 75 focused UI/read-path tests, SDK/app/API typechecks and app build passed; no public deployment of this candidate |
 | Prepared read-only release | Five focused real-data UI checks, root and Cloudflare typechecks, Vite release build and Wrangler dry run passed |
 | Release content | Credential scan of the selected release files passed; owner deployment page excluded from public assets; source/deployment distinction and execution-disabled copy retained |
 
@@ -221,7 +222,7 @@ If a wallet or browser flags the site, stop. Do not bypass its warning. Account 
 ## Remaining release work
 
 - Complete independent served-byte verification when direct public asset reads are available; do not treat the recorded 403 responses as resolved.
-- Resolve the renewal-capacity design choice and finish the corresponding finite contract work before any corrected-factory deployment.
+- The unchanged-cap renewal source and reservation-aware SDK preflight are implemented and tested. Prepare the Mac signing helper with the corrected candidate, preserve prior attempt history, and complete fresh owner review before requesting a deployment signature.
 - Have the owner review and sign any new deployment; verify the new receipt and runtime before changing application pins.
 - Complete required runtime/data integration and a deliberately limited owner-signed USDC flow, with current warnings and transaction outcomes handled truthfully.
 - Publish the final canonical source delta, update this status/evidence section, add the walkthrough video and run one final integrated acceptance check.

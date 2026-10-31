@@ -204,6 +204,8 @@ export interface VerifiedObservation {
   readonly factoryCap?:              bigint;
   readonly agreementCap?:            bigint;
   readonly factoryOutstandingL?:     bigint;
+  readonly factoryAllocatedCapacity?: bigint;
+  readonly agreementAllocation?: bigint;
 
   // Agreement immutable terms (undefined if read failed)
   readonly observedTerms?:     import("@noticevault/domain").AgreementTerms;
@@ -274,6 +276,7 @@ export interface FactoryObservation {
   readonly factoryCap?:             bigint;
   readonly agreementCap?:           bigint;
   readonly factoryOutstandingL?:    bigint;
+  readonly factoryAllocatedCapacity?: bigint;
   readonly factoryCreationPaused?:  boolean;
   readonly nonceUnavailable?:       boolean;
 

@@ -1,3 +1,4 @@
+import { requireCreationCapacity, requireRenewalCapacity } from "./capacity.js";
 /**
  * @noticevault/sdk — transaction request preparation
  *
@@ -335,6 +336,8 @@ export function prepareApproveForCreation(
   if (needed > evidence.agreementCap)
     throw new SdkStateError(`prepareApproveForCreation: A+R=${needed} exceeds agreementCap=${evidence.agreementCap}`);
 
+  requireCreationCapacity(dep, evidence, terms.amountPerPeriod, needed);
+
   // Client balance check — required (client's OWN balance, never child balance)
   if (evidence.clientBalance === undefined)
     throw new SdkStateError("prepareApproveForCreation: clientBalance missing from evidence");
@@ -408,6 +411,8 @@ export function prepareApproveForRenewal(
     throw new SdkStateError(
       `prepareApproveForRenewal: funding window closed (now=${nowSeconds} >= D=${evidence.domainSnapshot.D})`,
     );
+
+  requireRenewalCapacity(dep, evidence);
 
   // Approve: spender = agreement, amount = A only (renewal)
   return unsafeEncodeApprove(tokenAddr, agreementAddress, A, dep.chainId);
@@ -542,6 +547,8 @@ export async function prepareCreateAgreement(
   if (needed > factoryEvidence.agreementCap)
     throw new SdkStateError(`prepareCreateAgreement: A+R=${needed} exceeds agreementCap=${factoryEvidence.agreementCap}`);
 
+  requireCreationCapacity(dep, factoryEvidence, terms.amountPerPeriod, needed);
+
   // Client balance + allowance — required (client's OWN balance, never child balance)
   if (factoryEvidence.clientBalance === undefined)
     throw new SdkStateError("prepareCreateAgreement: clientBalance missing from evidence");
@@ -648,6 +655,8 @@ export function prepareFundNextPeriod(
     throw new SdkStateError(`prepareFundNextPeriod: now=${nowSeconds} >= expectedD=${expectedD}; funding window closed`);
   if (evidence.domainSnapshot && evidence.domainSnapshot.D !== expectedD)
     throw new SdkStateError(`prepareFundNextPeriod: expectedD=${expectedD} ≠ observed D=${evidence.domainSnapshot.D}`);
+
+  requireRenewalCapacity(dep, evidence);
 
   return {
     to:           requireAddress(agreementAddress, "agreementAddress"),

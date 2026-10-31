@@ -70,6 +70,11 @@ contract NoticeVaultFactory {
     /// @dev Total outstanding factory liability (sum of per-child)
     uint256 public outstandingLiability;
 
+    /// @dev Active agreements retain an exclusive full agreementCap allocation.
+    /// Actual liabilities remain separately accounted for and never exceed allocations.
+    mapping(address => uint256) public perAgreementAllocation;
+    uint256 public allocatedCapacity;
+
     /// @dev Nonces: true = unavailable (consumed or invalidated)
     mapping(address => mapping(uint256 => bool)) private _nonces;
 
@@ -233,7 +238,12 @@ contract NoticeVaultFactory {
         // ── 5. Cap validation ─────────────────────────────────────────────────
         // initialLiability = A + R (first period funded + reserve)
         uint256 initL = initialAmount;
-        if (initL > agreementCap) revert Err.AgreementCapExceeded(initL, agreementCap);
+        // Reserve room for one ordinary renewal after accrued earnings are claimed.
+        // Repeated early prepayment remains bounded by the unchanged liability cap.
+        uint256 renewalPeak = M.safeAdd(initL, t.amountPerPeriod); // 2A + R
+        if (renewalPeak > agreementCap) revert Err.AgreementCapExceeded(renewalPeak, agreementCap);
+        uint256 newAllocation = M.safeAdd(allocatedCapacity, agreementCap);
+        if (newAllocation > factoryCap) revert Err.FactoryCapExceeded(newAllocation, factoryCap);
         uint256 newFactoryL = M.safeAdd(outstandingLiability, initL);
         if (newFactoryL > factoryCap) revert Err.FactoryCapExceeded(newFactoryL, factoryCap);
 
@@ -255,6 +265,8 @@ contract NoticeVaultFactory {
         // ── 9. Reserve capacity ───────────────────────────────────────────────
         perAgreementLiability[agreement] = initL;
         outstandingLiability = newFactoryL;
+        perAgreementAllocation[agreement] = agreementCap;
+        allocatedCapacity = newAllocation;
 
         // ── 10. Transfer A+R from client to child ─────────────────────────────
         uint256 balBefore = IERC20(t.token).balanceOf(agreement);
@@ -282,7 +294,8 @@ contract NoticeVaultFactory {
 
         uint256 currentL = perAgreementLiability[agr];
         uint256 newAgrL = currentL + delta;
-        if (newAgrL > agreementCap) revert Err.AgreementCapExceeded(newAgrL, agreementCap);
+        uint256 allocation = perAgreementAllocation[agr];
+        if (newAgrL > allocation) revert Err.AgreementCapExceeded(newAgrL, allocation);
 
         uint256 newFactL = M.safeAdd(outstandingLiability, delta);
         if (newFactL > factoryCap) revert Err.FactoryCapExceeded(newFactL, factoryCap);
@@ -312,6 +325,15 @@ contract NoticeVaultFactory {
 
         perAgreementLiability[agr] = newAgrL;
         outstandingLiability = newFactL;
+
+        // Claims during SCHEDULED/ACTIVE retain renewal capacity. Effective notice
+        // is irreversible, including derived overdue notice not yet stored by a refund.
+        // Only unused allocation is released; unpaid liabilities remain allocated.
+        if (NoticeVaultAgreement(agr).preview().phase >= 2) {
+            uint256 previousAllocation = perAgreementAllocation[agr];
+            perAgreementAllocation[agr] = newAgrL;
+            allocatedCapacity -= previousAllocation - newAgrL;
+        }
 
         emit CapacityChanged(agr, -int256(delta), newAgrL, newFactL);
     }

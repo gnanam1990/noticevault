@@ -14,7 +14,7 @@ function fixture(opts:{values?:Record<string,unknown>;fail?:string;block?:Record
  const terms:TermsInput={schemaVersion:1,client:C,provider:P,token:T,amountPerPeriod:3000000n,periodSeconds:2592000n,noticeSeconds:864000n,startAt:now+600n,clientNonce:7n,acceptanceDeadline:now+1000n,termsDocumentHash:H};
  const reads:Array<{functionName:string;address:string;blockNumber:bigint}>=[];
  const block={number:123n,hash:H,timestamp:now,...opts.block};
- const values:Record<string,unknown>={token:T,decimals:6,factoryCap:100000000n,agreementCap:100000000n,outstandingLiability:0n,creationPaused:false,isNonceUnavailable:false,balanceOf:100000000n,allowance:100000000n,...opts.values};
+ const values:Record<string,unknown>={token:T,decimals:6,factoryCap:100000000n,agreementCap:100000000n,outstandingLiability:0n,allocatedCapacity:0n,perAgreementAllocation:100000000n,creationPaused:false,isNonceUnavailable:false,balanceOf:100000000n,allowance:100000000n,...opts.values};
  const rpc:MinimalPublicClient={getChainId:async()=>31337,getBlock:async args=>({...block,...('blockNumber' in args?opts.recheck:{})}) as never,getBytecode:async({address})=>address.toLowerCase()===F?FC:address.toLowerCase()===T?TC:('providerCode' in opts?opts.providerCode:"0x") as Hex,readContract:async args=>{reads.push({functionName:args.functionName,address:args.address,blockNumber:args.blockNumber});if(args.functionName===opts.fail)throw new Error("Injected failure");return values[args.functionName];}};
  return {dep,terms,rpc,reads,now,observe:()=>observeFactoryForCreation(rpc,dep,C,7n,terms)};
 }
@@ -29,6 +29,7 @@ async function setup(){
  const state={terms,regularFunded:3000000n,regularPaid:0n,noticePaid:0n,clientRefunded:0n,noticeStartStored:null,noticeReasonStored:null};
  const snap=buildSimulationSnapshot(state,f.now);
  const rpc={...f.rpc,readContract:async (a:Parameters<MinimalPublicClient["readContract"]>[0])=>{
+  if(a.functionName==="allocatedCapacity")return 100000000n;
   if(a.functionName==="registeredAgreement")return true;
   if(a.functionName==="terms")return Object.values(terms);
   if(a.functionName==="accounting")return [3000000n,0n,0n,0n,3000000n,false,0n,0,6000000n];

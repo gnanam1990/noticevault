@@ -1,3 +1,4 @@
+import {CapacityGuidance} from "./CapacityGuidance.js";
 import {useEffect,useMemo,useState,useSyncExternalStore} from 'react';
 import {ReviewLifecycleController} from './transaction-review.js';
 import {renewalAttemptStore} from './renewal-review.js';
@@ -12,6 +13,7 @@ export function AgreementRenewalReview({agreement,chainId,syntheticController}:{
  const review=state.review,busy=['preparing','checking','submitting'].includes(state.status),locked=['unknown','submitted','submitting'].includes(state.status),accepted=state.status==='review'&&!!review&&acceptedKey===review.key;
  return <section className="mt-5 rounded-xl border border-slate-300 bg-white p-5" aria-labelledby="renewal-review-title">
  <p className="text-sm font-semibold text-amber-800">Synthetic action review · Live execution unavailable</p><h3 id="renewal-review-title" className="mt-2 text-xl font-bold">Review renewal approval or funding</h3>
+ <CapacityGuidance renewal/>
  <p className="my-3">The selected indexed address only identifies a request target. Current session, connected client, deployment and pinned canonical SDK evidence are required to prepare an action. Indexed figures never grant permission or prove available funds.</p>
  <label className="block font-medium">Action<select className="my-2 min-h-11 w-full rounded border p-3" value={action} disabled={busy||locked||!!syntheticController} onChange={e=>{controller.invalidate();setAcceptedKey(null);setAction(e.target.value as RenewalAction);}}><option value="approve-renewal">Approve exactly one payment to the agreement</option><option value="fund-renewal">Fund the next payment period</option></select></label>
  <p role="status" aria-live="polite" className="my-3">{state.status}: {state.message}</p>

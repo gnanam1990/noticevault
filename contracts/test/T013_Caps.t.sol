@@ -16,9 +16,9 @@ contract T013_Caps is TestBase {
     // ── T013-A: Agreement cap exact equality allowed ──────────────────────────
 
     function test_T013_A_agreement_cap_exact_equality_allowed() external {
-        // Deploy factory with tight cap = exactly A+R (initial liability)
+        // Admission peak includes one renewal: exactly 2A+R.
         NoticeVaultFactory tightFactory = new NoticeVaultFactory(
-            guardian, address(usdc), FACTORY_CAP, A + R
+            guardian, address(usdc), FACTORY_CAP, 2 * A + R
         );
         vm.prank(clientAddr);
         usdc.approve(address(tightFactory), type(uint256).max);
@@ -37,9 +37,9 @@ contract T013_Caps is TestBase {
     // ── T013-B: Agreement cap +1 rejected ────────────────────────────────────
 
     function test_T013_B_agreement_cap_plus1_rejected() external {
-        // Cap = (A+R) - 1; creation must fail
+        // Cap is one unit below the required renewal peak; creation must fail
         NoticeVaultFactory tightFactory = new NoticeVaultFactory(
-            guardian, address(usdc), FACTORY_CAP, A + R - 1
+            guardian, address(usdc), FACTORY_CAP, 2 * A + R - 1
         );
         vm.prank(clientAddr);
         usdc.approve(address(tightFactory), type(uint256).max);
@@ -57,10 +57,10 @@ contract T013_Caps is TestBase {
     // ── T013-C: Factory cap — multi-child accumulation ────────────────────────
 
     function test_T013_C_factory_cap_multi_child() external {
-        // Cap = exactly 2 * (A+R); third creation must fail
-        uint256 cap = 2 * (A + R);
+        // Two exclusive renewal allocations fit; a third must fail.
+        uint256 cap = 2 * (2 * A + R);
         NoticeVaultFactory smallFactory = new NoticeVaultFactory(
-            guardian, address(usdc), cap, cap // agr cap = factory cap (large per-agr)
+            guardian, address(usdc), cap, 2 * A + R
         );
         usdc.mint(clientAddr, cap * 3);
         vm.prank(clientAddr);
@@ -88,9 +88,8 @@ contract T013_Caps is TestBase {
     // ── T013-D: Claim releases headroom, renewal succeeds ────────────────────
 
     function test_T013_D_claim_releases_headroom_renewal_succeeds() external {
-        // Factory cap = A+R+A-1 (tight). After creation L=A+R. After partial claim
-        // (day15, delta=1.5e9), L=A+R-1.5e9=4.5e9. Renewal adds A=3e9 → L=7.5e9 < cap.
-        uint256 capV = A + R + A - 1; // = 8_999_999_999
+        // One allocation covers the admission peak; claims preserve its headroom.
+        uint256 capV = 2 * A + R;
         NoticeVaultFactory f = new NoticeVaultFactory(
             guardian, address(usdc), capV, capV
         );

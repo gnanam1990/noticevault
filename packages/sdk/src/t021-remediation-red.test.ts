@@ -104,6 +104,7 @@ function makeFullPassingClient(): MinimalPublicClient {
       if (fn === "token") return ADDR_TOKEN;
       if (fn === "factoryCap") return 100_000_000n;
       if (fn === "agreementCap") return 50_000_000n;
+      if (fn === "allocatedCapacity" || fn === "perAgreementAllocation") return 50_000_000n;
       if (fn === "outstandingLiability") return 0n;
       if (fn === "creationPaused") return false;
       if (fn === "terms") return [
@@ -227,7 +228,8 @@ describe("T021-C failed reorg recheck is rpc_failure not ok (fixed)", () => {
         if (fn === "token") return ADDR_TOKEN;
         if (fn === "factoryCap") return 100_000_000n;
         if (fn === "agreementCap") return 50_000_000n;
-        if (fn === "outstandingLiability") return 0n;
+        if (fn === "allocatedCapacity" || fn === "perAgreementAllocation") return 50_000_000n;
+      if (fn === "outstandingLiability") return 0n;
         if (fn === "creationPaused") return false;
         if (fn === "terms") return [
           1, ADDR_CLIENT, ADDR_PROVIDER, ADDR_TOKEN,
@@ -313,7 +315,8 @@ describe("T021-E domain MalformedStateError → accounting_mismatch (fixed)", ()
         if (fn === "token") return ADDR_TOKEN;
         if (fn === "factoryCap") return 100_000_000n;
         if (fn === "agreementCap") return 50_000_000n;
-        if (fn === "outstandingLiability") return 0n;
+        if (fn === "allocatedCapacity" || fn === "perAgreementAllocation") return 50_000_000n;
+      if (fn === "outstandingLiability") return 0n;
         if (fn === "creationPaused") return false;
         if (fn === "terms") return [
           1, ADDR_CLIENT, ADDR_PROVIDER, ADDR_TOKEN,
@@ -460,7 +463,8 @@ describe("T021-I token balance read failure is fatal (fixed)", () => {
         if (fn === "token") return ADDR_TOKEN;
         if (fn === "factoryCap") return 100_000_000n;
         if (fn === "agreementCap") return 50_000_000n;
-        if (fn === "outstandingLiability") return 0n;
+        if (fn === "allocatedCapacity" || fn === "perAgreementAllocation") return 50_000_000n;
+      if (fn === "outstandingLiability") return 0n;
         if (fn === "creationPaused") return false;
         if (fn === "terms") return [
           1, ADDR_CLIENT, ADDR_PROVIDER, ADDR_TOKEN,
@@ -508,7 +512,8 @@ describe("T021-J preview read failure is fatal (fixed)", () => {
         if (fn === "token") return ADDR_TOKEN;
         if (fn === "factoryCap") return 100_000_000n;
         if (fn === "agreementCap") return 50_000_000n;
-        if (fn === "outstandingLiability") return 0n;
+        if (fn === "allocatedCapacity" || fn === "perAgreementAllocation") return 50_000_000n;
+      if (fn === "outstandingLiability") return 0n;
         if (fn === "creationPaused") return false;
         if (fn === "terms") return [
           1, ADDR_CLIENT, ADDR_PROVIDER, ADDR_TOKEN,

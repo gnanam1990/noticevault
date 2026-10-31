@@ -29,7 +29,7 @@ import { AGREEMENT_ABI }  from "./generated/agreement-abi.js";
 
 const REQUIRED_FACTORY_ENTRIES = [
   "createAgreement","invalidateNonce","isNonceUnavailable","outstandingLiability",
-  "factoryCap","agreementCap","token","registeredAgreement","setCreationPaused",
+  "factoryCap","agreementCap","allocatedCapacity","perAgreementAllocation","token","registeredAgreement","setCreationPaused",
   "AgreementCreated","NonceInvalidated","CapacityChanged","CreationPauseChanged",
 ] as const;
 

@@ -1,0 +1,46 @@
+{
+  "status": "prepared-not-deployed",
+  "chainId": 5042,
+  "from": "0xFf525D6940Ad0e308ed6eda443c792694353F9Da",
+  "to": null,
+  "value": "0x0",
+  "constructor": {
+    "guardian": "0xFf525D6940Ad0e308ed6eda443c792694353F9Da",
+    "token": "0x3600000000000000000000000000000000000000",
+    "factoryCap": "10000000",
+    "agreementCap": "1000000"
+  },
+  "artifactSha256": "4bcf1e7e1a8b57c56e292629e482c6d0ce1f2d6dc2798b4ccc4f898eb3ee6c56",
+  "creationBytecodeKeccak256": "0xf7c8f720e435d185888382786b274df1699d15ed846167ed2c5ae3f9eaaa9b0d",
+  "initcodeKeccak256": "0x0d4616d7edf84612e18a9d8d23b6623f4d088945c7ec3b929e01ae567536370b",
+  "initcodeBytes": 16456,
+  "sourceSha256": "9fbadfef343559bdc1f9b1854d8dda5d03a4d9ac5c1e0eaf193f72340ff3743e",
+  "compiler": "0.8.28",
+  "optimizerRuns": 200,
+  "viaIR": true,
+  "evmVersion": "paris",
+  "tests": {
+    "passed": 98,
+    "failed": 0
+  },
+  "nonce": null,
+  "gas": null,
+  "fee": null,
+  "ownerSignatureRequired": true,
+  "executionEnabled": false,
+  "originalFactory": "0x801c366eb4e07162fca1f260d78338a3433d81e2",
+  "signingState": "refresh nonce, chain, account, code and gas in owner wallet before requesting signature",
+  "semantics": {
+    "factoryCapUnchanged": true,
+    "agreementCapUnchanged": true,
+    "fullAgreementAllocation": true,
+    "admission": "2A + ceil(A*N/P) <= agreementCap",
+    "activeClaimReleasesReservation": false,
+    "effectiveNoticeReleasesOnlyUnusedAllocation": true,
+    "newDeploymentRequired": true,
+    "sdkReservationPreflightPending": false,
+    "sdkReservationPreflightImplemented": true
+  },
+  "signingHelperReady": false,
+  "signingHelperNote": "Existing Mac helper still pins the original artifact; corrected candidate must be staged with preserved journals and fresh owner review before any wallet request."
+}

@@ -1,3 +1,4 @@
+import {CapacityGuidance} from "./CapacityGuidance.js";
 import {keccak256,toHex} from 'viem';
 import {useEffect,useRef,useState} from 'react';
 import {AuthoringController,browserJournal} from './authoring.js';
@@ -28,6 +29,7 @@ export function Authoring({api,identity,enabled,selectedWorkspace,reviewed,onSav
  function replaceForm(){if(!reviewed||busy)return;if(!window.confirm('Replace the unsaved form with the currently reviewed draft? Review again first if a version conflict occurred.'))return;setWorkspaceId(reviewed.workspace_id);setTerms({...reviewed.terms_json});setEditing(null);setDocumentText(String());setError('');}
  return <section className="my-6 space-y-5 rounded-xl border border-slate-200 bg-white p-5" aria-label="Authenticated authoring">
   <h2 className="text-xl font-semibold">Workspace and draft authoring</h2>
+  <CapacityGuidance/>
   <p className="text-sm text-slate-600">Authenticated backend records. Saving a draft does not approve terms, verify chain facts, fund an agreement, or sign a transaction.</p>
   {!enabled&&<p role="status">Sign in with the same account and chain to save. Unsaved form input is retained while this page stays open.</p>}
   <p className="break-all text-sm">Author: {identity.address} · Chain {identity.chainId}</p>

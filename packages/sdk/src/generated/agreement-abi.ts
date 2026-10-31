@@ -5,7 +5,7 @@
  * Source artifact: contracts/out/NoticeVaultAgreement.sol/NoticeVaultAgreement.json
  * Contract: NoticeVaultAgreement
  * Entry count: 41
- * SHA-256: 88167a66b23e24a054d1ef1f146ae45737e006084590bbcb153f29bf4b1974c0
+ * SHA-256: d5bb18d390b2b4c7a14850602b9e22fd99e5a25f3ecba9e35745d37c1eaad688
  *
  * This file has NO Node.js imports and is safe for browser/Vite bundling.
  * Re-generate with: bun run packages/sdk/scripts/generate-abi.ts

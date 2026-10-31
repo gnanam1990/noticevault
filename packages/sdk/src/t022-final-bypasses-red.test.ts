@@ -144,6 +144,7 @@ function makeFactoryClient(opts: {
       if (functionName === "decimals") return 6;
       if (functionName === "factoryCap")           return 100_000_000n;
       if (functionName === "agreementCap")         return 100_000_000n;
+      if (functionName === "allocatedCapacity") return 0n;
       if (functionName === "outstandingLiability") return 0n;
       if (functionName === "creationPaused")       return false;
       if (functionName === "isNonceUnavailable")   return false;

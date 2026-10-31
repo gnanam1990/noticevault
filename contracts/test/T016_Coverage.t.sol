@@ -243,8 +243,8 @@ contract T016_Coverage is TestBase {
 
     /// @notice Renewal that pushes liability above agreementCap is rejected.
     function test_T016_05b_renewal_cap_plus1_rejected() external {
-        // Cap = 2A+R-1. Renewal pushes L to 2A+R which exceeds cap.
-        uint256 capVal = 2 * A + R - 1;
+        // Admission reserves a renewal; a second prepayment exceeds the cap by one.
+        uint256 capVal = 3 * A + R - 1;
         NoticeVaultFactory f = new NoticeVaultFactory(
             guardian, address(usdc), FACTORY_CAP, capVal
         );
@@ -265,7 +265,10 @@ contract T016_Coverage is TestBase {
         _warpTo(agr, uint64(P) - DAYS);
         uint64 D_ = _D(agr);
         vm.prank(clientAddr);
-        vm.expectRevert(); // AgreementCapExceeded
+        agr.fundNextPeriod(D_);
+        D_ = _D(agr);
+        vm.prank(clientAddr);
+        vm.expectRevert(abi.encodeWithSelector(Err.AgreementCapExceeded.selector, 3 * A + R, capVal));
         agr.fundNextPeriod(D_);
     }
 
